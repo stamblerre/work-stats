@@ -1,7 +1,5 @@
 # work-stats
 
-# work-stats
-
 Install:
 
 `go get github.com/stamblerre/work-stats`
