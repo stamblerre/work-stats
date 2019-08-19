@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/stamblerre/work-stats/issues"
@@ -15,7 +16,7 @@ import (
 
 var (
 	username = flag.String("username", "", "GitHub username")
-	email    = flag.String("email", "", "Gerrit email")
+	email    = flag.String("email", "", "Gerrit email or emails, comma-separated")
 	since    = flag.String("since", "", "date since when to collect data")
 )
 
@@ -30,6 +31,7 @@ func main() {
 	if *email == "" {
 		log.Fatalf("please provide your Gerrit email")
 	}
+	emails := strings.Split(*email, ",")
 
 	// Parse out the start date, if provided.
 	var (
@@ -69,7 +71,7 @@ func main() {
 	fmt.Printf("GitHub issues: wrote output to %s\n", filename)
 
 	// Write out data on the user's activity on Gerrit code reviews.
-	reviewStats, err := reviews.Data(corpus.Gerrit(), *email, start)
+	reviewStats, err := reviews.Data(corpus.Gerrit(), emails, start)
 	if err != nil {
 		log.Fatal(err)
 	}

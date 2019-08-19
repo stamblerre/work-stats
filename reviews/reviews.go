@@ -24,40 +24,50 @@ type ReviewData struct {
 }
 
 // Get some statistics on issues opened, closed, and commented on.
-func Data(gerrit *maintner.Gerrit, email string, start time.Time) (*ReviewData, error) {
+func Data(gerrit *maintner.Gerrit, emails []string, start time.Time) (*ReviewData, error) {
 	stats := &ReviewData{
 		authored: make(map[*maintner.GerritCL]struct{}),
 		reviewed: make(map[*maintner.GerritCL]struct{}),
 	}
-	ownerID := new(int)
-	gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
+	emailset := make(map[string]bool)
+	for _, e := range emails {
+		emailset[e] = true
+	}
+	ownerIDs := make(map[int]bool)
+	if err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
 		// First, collect all CLs authored by the user.
 		project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
-			if cl.Owner() != nil && cl.Owner().Email() == email {
-				*ownerID = cl.OwnerID()
+			if cl.Owner() != nil && emailset[cl.Owner().Email()] {
+				if cl.Branch() == "master" {
+					ownerIDs[cl.OwnerID()] = true
+				}
 				if cl.Status == "merged" {
 					if cl.Created.After(start) {
 						stats.authored[cl] = struct{}{}
 					}
 				}
-				return nil
 			}
 			return nil
 		})
-		if ownerID == nil {
-			return errors.Errorf("unable to collect review data, user has never authored a CL, so the reviewer ID cannot be matched")
-		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	if len(ownerIDs) == 0 {
+		return nil, errors.Errorf("unable to collect review data, user has never authored a CL, so the reviewer ID cannot be matched")
+	}
+	if err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
 		// We have to do this call separately, since we have to make sure that the owner ID has been set correctly.
-		project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
+		return project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
 			// If it was the user owns the CL, they cannot be its reviewer.
-			if cl.Owner() != nil && cl.Owner().Email() == email {
+			if cl.Owner() != nil && emailset[cl.Owner().Email()] {
 				return nil
 			}
 			// If the user reviewed the CL.
 			for _, msg := range cl.Messages {
 				// If the user's email is actually tracked.
 				// Not sure why this happens for some people, but not others.
-				if msg.Author != nil && msg.Author.Email() == email {
+				if msg.Author != nil && emailset[msg.Author.Email()] {
 					if msg.Date.After(start) {
 						stats.reviewed[cl] = struct{}{}
 						return nil
@@ -70,7 +80,7 @@ func Data(gerrit *maintner.Gerrit, email string, start time.Time) (*ReviewData, 
 						if err != nil {
 							log.Fatal(err)
 						}
-						if int(id) == *ownerID {
+						if ownerIDs[int(id)] {
 							if msg.Date.After(start) {
 								stats.reviewed[cl] = struct{}{}
 								return nil
@@ -81,8 +91,9 @@ func Data(gerrit *maintner.Gerrit, email string, start time.Time) (*ReviewData, 
 			}
 			return nil
 		})
-		return nil
-	})
+	}); err != nil {
+		return nil, err
+	}
 	return stats, nil
 }
 
