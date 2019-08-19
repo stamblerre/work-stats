@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"golang.org/x/build/maintner"
 )
 
@@ -28,23 +29,33 @@ func Data(gerrit *maintner.Gerrit, email string, start time.Time) (*ReviewData, 
 		authored: make(map[*maintner.GerritCL]struct{}),
 		reviewed: make(map[*maintner.GerritCL]struct{}),
 	}
-	var ownerID int
+	ownerID := new(int)
 	gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
+		// First, collect all CLs authored by the user.
 		project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
-			if cl.Status != "merged" {
+			if cl.Owner() != nil && cl.Owner().Email() == email {
+				*ownerID = cl.OwnerID()
+				if cl.Status == "merged" {
+					if cl.Created.After(start) {
+						stats.authored[cl] = struct{}{}
+					}
+				}
 				return nil
 			}
-			// If the user created the CL.
+			return nil
+		})
+		if ownerID == nil {
+			return errors.Errorf("unable to collect review data, user has never authored a CL, so the reviewer ID cannot be matched")
+		}
+		// We have to do this call separately, since we have to make sure that the owner ID has been set correctly.
+		project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
+			// If it was the user owns the CL, they cannot be its reviewer.
 			if cl.Owner() != nil && cl.Owner().Email() == email {
-				ownerID = cl.OwnerID()
-				if cl.Created.After(start) {
-					stats.authored[cl] = struct{}{}
-				}
 				return nil
 			}
 			// If the user reviewed the CL.
 			for _, msg := range cl.Messages {
-				// If the user's email is actually tracker.
+				// If the user's email is actually tracked.
 				// Not sure why this happens for some people, but not others.
 				if msg.Author != nil && msg.Author.Email() == email {
 					if msg.Date.After(start) {
@@ -59,7 +70,7 @@ func Data(gerrit *maintner.Gerrit, email string, start time.Time) (*ReviewData, 
 						if err != nil {
 							log.Fatal(err)
 						}
-						if int(id) == ownerID {
+						if int(id) == *ownerID {
 							if msg.Date.After(start) {
 								stats.reviewed[cl] = struct{}{}
 								return nil

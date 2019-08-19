@@ -22,9 +22,8 @@ var (
 func main() {
 	flag.Parse()
 
-	// Only the username flag is required.
-	// If since is omitted, results are all time.
-	// If repo is omitted, results are for all repos.
+	// Username and email are required flags.
+	// If since is omitted, results reflect all history.
 	if *username == "" {
 		log.Fatalf("please provide a Github username")
 	}
