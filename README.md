@@ -6,4 +6,4 @@ Install:
 
 Run:
 
-`work-stats --username=bob --email=bob@gmail.com --since=2019-01-01`
+`work-stats --username=bob --email=bob@gmail.com,bob@golang.org --since=2019-01-01`
