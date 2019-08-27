@@ -10,10 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/stamblerre/work-stats/issues"
-	"github.com/stamblerre/work-stats/reviews"
+	"github.com/stamblerre/work-stats/github"
+	"github.com/stamblerre/work-stats/golang"
+	"golang.org/x/build/maintner"
 	"golang.org/x/build/maintner/godata"
 )
 
@@ -21,6 +23,14 @@ var (
 	username = flag.String("username", "", "GitHub username")
 	email    = flag.String("email", "", "Gerrit email or emails, comma-separated")
 	since    = flag.String("since", "", "date since when to collect data")
+
+	// Optional flags.
+	goIssuesFlag      = flag.Bool("go_issues", true, "If false, do not collect data on Go issues")
+	goChangelistsFlag = flag.Bool("go_cls", true, "If false, do not collect data on Go changelists")
+	githubIssuesFlag  = flag.Bool("github_issues", true, "If false, do not collect data on GitHub issues")
+
+	// Globals.
+	corpus *maintner.Corpus
 )
 
 func main() {
@@ -56,46 +66,60 @@ func main() {
 		log.Fatal(err)
 	}
 
+	ctx := context.Background()
+
 	// Get the corpus data (very slow on first try, uses cache after).
-	corpus, err := godata.Get(context.Background())
-	if err != nil {
-		log.Fatal(err)
+	var initOnce sync.Once
+	initCorpus := func() {
+		corpus, err = godata.Get(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
-	// Write out data on the user's activity on GitHub issues.
-	issueStats, err := issues.Data(corpus.GitHub(), *username, start)
-	if err != nil {
-		log.Fatal(err)
-	}
-	filenames, err := write(dir, issueStats)
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, filename := range filenames {
-		fmt.Printf("GitHub issues: Wrote output to %s\n", filename)
+	// Write out data on the user's activity on the Go project's GitHub issues.
+	if *goIssuesFlag {
+		initOnce.Do(initCorpus)
+		goIssues, err := golang.Issues(corpus.GitHub(), *username, start)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := write(dir, goIssues); err != nil {
+			log.Fatal(err)
+		}
 	}
 
-	// Write out data on the user's activity on Gerrit code reviews.
-	reviewStats, err := reviews.Data(corpus.Gerrit(), emails, start)
-	if err != nil {
-		log.Fatal(err)
+	// Write out data on the user's activity on the Go project's Gerrit code reviews.
+	if *goChangelistsFlag {
+		initOnce.Do(initCorpus)
+		goCLs, err := golang.Changelists(corpus.Gerrit(), emails, start)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := write(dir, goCLs); err != nil {
+			log.Fatal(err)
+		}
 	}
-	filenames, err = write(dir, reviewStats)
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, filename := range filenames {
-		fmt.Printf("Gerrit reviews: Wrote output to %s\n", filename)
+
+	// Write out data on the user's activity on GitHub issues outside of the Go project.
+	if *githubIssuesFlag {
+		githubIssues, err := github.Issues(ctx, *username, start)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := write(dir, githubIssues); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
-func write(outputDir string, outputFns map[string]func(writer *csv.Writer) error) ([]string, error) {
+func write(outputDir string, outputFns map[string]func(writer *csv.Writer) error) error {
 	var filenames []string
 	for filename, fn := range outputFns {
 		fullpath := filepath.Join(outputDir, fmt.Sprintf("%s.csv", filename))
 		file, err := os.Create(fullpath)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		defer file.Close()
 
@@ -103,9 +127,12 @@ func write(outputDir string, outputFns map[string]func(writer *csv.Writer) error
 		defer writer.Flush()
 
 		if err := fn(writer); err != nil {
-			return nil, err
+			return err
 		}
 		filenames = append(filenames, fullpath)
 	}
-	return filenames, nil
+	for _, filename := range filenames {
+		fmt.Printf("Wrote output to %s\n", filename)
+	}
+	return nil
 }

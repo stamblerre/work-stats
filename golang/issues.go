@@ -1,4 +1,4 @@
-package issues
+package golang
 
 import (
 	"encoding/csv"
@@ -16,7 +16,7 @@ type commentData struct {
 }
 
 // Get some statistics on issues opened, closed, and commented on.
-func Data(github *maintner.GitHub, username string, start time.Time) (map[string]func(writer *csv.Writer) error, error) {
+func Issues(github *maintner.GitHub, username string, start time.Time) (map[string]func(writer *csv.Writer) error, error) {
 	stats := make(map[*maintner.GitHubIssue]*commentData)
 
 	// Only use the golang/go repo, since we don't file issues elsewhere.
@@ -60,7 +60,7 @@ func Data(github *maintner.GitHub, username string, start time.Time) (map[string
 		return nil
 	})
 	return map[string]func(*csv.Writer) error{
-		"issues": func(writer *csv.Writer) error {
+		"golang-issues": func(writer *csv.Writer) error {
 			var opened, closed, comments int
 			if err := writer.Write([]string{"issue number", "opened", "closed", "num comments"}); err != nil {
 				return err

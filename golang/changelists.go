@@ -1,4 +1,4 @@
-package reviews
+package golang
 
 import (
 	"encoding/csv"
@@ -14,7 +14,7 @@ import (
 )
 
 // Get some statistics on issues opened, closed, and commented on.
-func Data(gerrit *maintner.Gerrit, emails []string, start time.Time) (map[string]func(writer *csv.Writer) error, error) {
+func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map[string]func(writer *csv.Writer) error, error) {
 	authored := make(map[*maintner.GerritCL]struct{})
 	reviewed := make(map[*maintner.GerritCL]struct{})
 	emailset := make(map[string]bool)
@@ -83,10 +83,10 @@ func Data(gerrit *maintner.Gerrit, emails []string, start time.Time) (map[string
 		return nil, err
 	}
 	return map[string]func(*csv.Writer) error{
-		"authored": func(writer *csv.Writer) error {
+		"golang-authored": func(writer *csv.Writer) error {
 			return outputCLs(writer, authored)
 		},
-		"reviewed": func(writer *csv.Writer) error {
+		"golang-reviewed": func(writer *csv.Writer) error {
 			return outputCLs(writer, reviewed)
 		},
 	}, nil
