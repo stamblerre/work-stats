@@ -4,8 +4,6 @@ import (
 	"encoding/csv"
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,20 +13,10 @@ import (
 	"golang.org/x/build/maintner"
 )
 
-type ReviewData struct {
-	// CLs authored
-	authored map[*maintner.GerritCL]struct{}
-
-	// CLs reviewed
-	reviewed map[*maintner.GerritCL]struct{}
-}
-
 // Get some statistics on issues opened, closed, and commented on.
-func Data(gerrit *maintner.Gerrit, emails []string, start time.Time) (*ReviewData, error) {
-	stats := &ReviewData{
-		authored: make(map[*maintner.GerritCL]struct{}),
-		reviewed: make(map[*maintner.GerritCL]struct{}),
-	}
+func Data(gerrit *maintner.Gerrit, emails []string, start time.Time) (map[string]func(writer *csv.Writer) error, error) {
+	authored := make(map[*maintner.GerritCL]struct{})
+	reviewed := make(map[*maintner.GerritCL]struct{})
 	emailset := make(map[string]bool)
 	for _, e := range emails {
 		emailset[e] = true
@@ -43,7 +31,7 @@ func Data(gerrit *maintner.Gerrit, emails []string, start time.Time) (*ReviewDat
 				}
 				if cl.Status == "merged" {
 					if cl.Created.After(start) {
-						stats.authored[cl] = struct{}{}
+						authored[cl] = struct{}{}
 					}
 				}
 			}
@@ -69,7 +57,7 @@ func Data(gerrit *maintner.Gerrit, emails []string, start time.Time) (*ReviewDat
 				// Not sure why this happens for some people, but not others.
 				if msg.Author != nil && emailset[msg.Author.Email()] {
 					if msg.Date.After(start) {
-						stats.reviewed[cl] = struct{}{}
+						reviewed[cl] = struct{}{}
 						return nil
 					}
 				}
@@ -82,7 +70,7 @@ func Data(gerrit *maintner.Gerrit, emails []string, start time.Time) (*ReviewDat
 						}
 						if ownerIDs[int(id)] {
 							if msg.Date.After(start) {
-								stats.reviewed[cl] = struct{}{}
+								reviewed[cl] = struct{}{}
 								return nil
 							}
 						}
@@ -94,37 +82,19 @@ func Data(gerrit *maintner.Gerrit, emails []string, start time.Time) (*ReviewDat
 	}); err != nil {
 		return nil, err
 	}
-	return stats, nil
+	return map[string]func(*csv.Writer) error{
+		"authored": func(writer *csv.Writer) error {
+			return outputCLs(writer, authored)
+		},
+		"reviewed": func(writer *csv.Writer) error {
+			return outputCLs(writer, reviewed)
+		},
+	}, nil
 }
 
-func Write(outputDir string, stats *ReviewData) ([]string, error) {
-	// Write out authored CLs.
-	filename1, err := writeCLs(outputDir, "authored.csv", stats.authored)
-	if err != nil {
-		return nil, err
-	}
-	filename2, err := writeCLs(outputDir, "reviewed.csv", stats.reviewed)
-	if err != nil {
-		return nil, err
-	}
-	return []string{filename1, filename2}, nil
-}
-
-func writeCLs(dir, filename string, stats map[*maintner.GerritCL]struct{}) (string, error) {
-	// Write out authored CLs.
-	path := filepath.Join(dir, filename)
-	file, err := os.Create(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	var total int
+func outputCLs(writer *csv.Writer, cls map[*maintner.GerritCL]struct{}) error {
 	var sorted []*maintner.GerritCL
-	for cl := range stats {
+	for cl := range cls {
 		sorted = append(sorted, cl)
 	}
 	sort.Slice(sorted, func(i, j int) bool {
@@ -137,9 +107,6 @@ func writeCLs(dir, filename string, stats map[*maintner.GerritCL]struct{}) (stri
 			fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number),
 			cl.Subject(),
 		})
-		total++
 	}
-	writer.Write([]string{"Total", fmt.Sprintf("%v", total)})
-
-	return path, nil
+	return writer.Write([]string{"Total", fmt.Sprintf("%v", len(cls))})
 }

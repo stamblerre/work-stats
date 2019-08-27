@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -64,22 +67,45 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	filename, err := issues.Write(dir, issueStats)
+	filenames, err := write(dir, issueStats)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("GitHub issues: wrote output to %s\n", filename)
+	for _, filename := range filenames {
+		fmt.Printf("GitHub issues: Wrote output to %s\n", filename)
+	}
 
 	// Write out data on the user's activity on Gerrit code reviews.
 	reviewStats, err := reviews.Data(corpus.Gerrit(), emails, start)
 	if err != nil {
 		log.Fatal(err)
 	}
-	filenames, err := reviews.Write(dir, reviewStats)
+	filenames, err = write(dir, reviewStats)
 	if err != nil {
 		log.Fatal(err)
 	}
 	for _, filename := range filenames {
-		fmt.Printf("Gerrit reviews: wrote output to %s\n", filename)
+		fmt.Printf("Gerrit reviews: Wrote output to %s\n", filename)
 	}
+}
+
+func write(outputDir string, outputFns map[string]func(writer *csv.Writer) error) ([]string, error) {
+	var filenames []string
+	for filename, fn := range outputFns {
+		fullpath := filepath.Join(outputDir, fmt.Sprintf("%s.csv", filename))
+		file, err := os.Create(fullpath)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+
+		writer := csv.NewWriter(file)
+		defer writer.Flush()
+
+		if err := fn(writer); err != nil {
+			return nil, err
+		}
+		filenames = append(filenames, fullpath)
+	}
+	return filenames, nil
 }
