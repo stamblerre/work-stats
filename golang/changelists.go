@@ -84,29 +84,41 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 	}
 	return map[string]func(*csv.Writer) error{
 		"golang-authored": func(writer *csv.Writer) error {
-			return outputCLs(writer, authored)
+			var sorted []*maintner.GerritCL
+			for cl := range authored {
+				sorted = append(sorted, cl)
+			}
+			sort.Slice(sorted, func(i, j int) bool {
+				return sorted[i].Created.Before(sorted[j].Created)
+			})
+			writer.Write([]string{"CL", "Description"})
+			for _, cl := range sorted {
+				writer.Write([]string{
+					// TODO: Technically should insert the -review into cl.Project.Server().
+					fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number),
+					cl.Subject(),
+				})
+			}
+			return writer.Write([]string{"Total", fmt.Sprintf("%v", len(authored))})
 		},
 		"golang-reviewed": func(writer *csv.Writer) error {
-			return outputCLs(writer, reviewed)
+			var sorted []*maintner.GerritCL
+			for cl := range reviewed {
+				sorted = append(sorted, cl)
+			}
+			sort.Slice(sorted, func(i, j int) bool {
+				return sorted[i].Created.Before(sorted[j].Created)
+			})
+			writer.Write([]string{"CL", "Author", "Description"})
+			for _, cl := range sorted {
+				writer.Write([]string{
+					// TODO: Technically should insert the -review into cl.Project.Server().
+					fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number),
+					cl.Owner().Email(),
+					cl.Subject(),
+				})
+			}
+			return writer.Write([]string{"Total", fmt.Sprintf("%v", len(reviewed))})
 		},
 	}, nil
-}
-
-func outputCLs(writer *csv.Writer, cls map[*maintner.GerritCL]struct{}) error {
-	var sorted []*maintner.GerritCL
-	for cl := range cls {
-		sorted = append(sorted, cl)
-	}
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Created.Before(sorted[j].Created)
-	})
-	writer.Write([]string{"CL", "Description"})
-	for _, cl := range sorted {
-		writer.Write([]string{
-			// TODO: Technically should insert the -review into cl.Project.Server().
-			fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number),
-			cl.Subject(),
-		})
-	}
-	return writer.Write([]string{"Total", fmt.Sprintf("%v", len(cls))})
 }

@@ -103,7 +103,7 @@ func main() {
 
 	// Write out data on the user's activity on GitHub issues outside of the Go project.
 	if *githubIssuesFlag {
-		githubIssues, err := github.Issues(ctx, *username, start)
+		githubIssues, err := github.IssuesAndPRs(ctx, *username, start)
 		if err != nil {
 			log.Fatal(err)
 		}

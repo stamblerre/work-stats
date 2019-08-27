@@ -19,9 +19,10 @@ type issueData struct {
 	number         int
 	opened, closed bool
 	comments       int
+	isPR           bool
 }
 
-func Issues(ctx context.Context, username string, since time.Time) (map[string]func(*csv.Writer) error, error) {
+func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[string]func(*csv.Writer) error, error) {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
 		return nil, fmt.Errorf("GITHUB_TOKEN environment variable is not configured")
@@ -37,8 +38,7 @@ func Issues(ctx context.Context, username string, since time.Time) (map[string]f
 	// Get all non-golang/go issues.
 	var current, total int
 	for i := 0; ; i++ {
-		result, _, err := client.Search.Issues(ctx, fmt.Sprintf("commenter:%v updated:>=%v", username, since.Format("2006-01-02")), &github.SearchOptions{
-			Sort: "updated-dsc",
+		result, _, err := client.Search.Issues(ctx, fmt.Sprintf("involves:%v updated:>=%v", username, since.Format("2006-01-02")), &github.SearchOptions{
 			ListOptions: github.ListOptions{
 				Page:    i,
 				PerPage: 100,
@@ -48,10 +48,6 @@ func Issues(ctx context.Context, username string, since time.Time) (map[string]f
 			return nil, err
 		}
 		for _, issue := range result.Issues {
-			// Skip PRs for now.
-			if issue.IsPullRequest() {
-				continue
-			}
 			trimmed := strings.TrimPrefix(issue.GetRepositoryURL(), "https://api.github.com/repos/")
 			split := strings.SplitN(trimmed, "/", 2)
 			org, repo := split[0], split[1]
@@ -65,6 +61,7 @@ func Issues(ctx context.Context, username string, since time.Time) (map[string]f
 				number: issue.GetNumber(),
 				// Only mark issues as opened if the user opened them since the specified date.
 				opened: issue.GetUser().GetLogin() == username && issue.GetCreatedAt().After(since),
+				isPR:   issue.IsPullRequest(),
 			}
 		}
 		total = result.GetTotal()
@@ -104,15 +101,26 @@ func Issues(ctx context.Context, username string, since time.Time) (map[string]f
 			issue.comments++
 		}
 	}
-	sorted := make([]string, 0, len(stats))
-	for url := range stats {
-		sorted = append(sorted, url)
+
+	sortedPRs := make([]string, 0, len(stats))
+	for url, data := range stats {
+		if !data.isPR {
+			continue
+		}
+		sortedPRs = append(sortedPRs, url)
 	}
-	sort.Strings(sorted)
 
 	// TODO(rstambler): Add per-repo totals.
 	return map[string]func(*csv.Writer) error{
 		"github-issues": func(writer *csv.Writer) error {
+			sorted := make([]string, 0, len(stats))
+			for url, data := range stats {
+				if data.isPR {
+					continue
+				}
+				sorted = append(sorted, url)
+			}
+			sort.Strings(sorted)
 			if err := writer.Write([]string{"Issue", "Opened", "Closed", "Number of Comments"}); err != nil {
 				return err
 			}
@@ -138,6 +146,62 @@ func Issues(ctx context.Context, username string, since time.Time) (map[string]f
 			return writer.Write([]string{
 				fmt.Sprintf("%v", len(stats)),
 				fmt.Sprintf("%v", opened),
+				fmt.Sprintf("%v", closed),
+				fmt.Sprintf("%v", comments),
+			})
+		},
+		"github-prs-authored": func(writer *csv.Writer) error {
+			if err := writer.Write([]string{"Repo", "URL"}); err != nil {
+				return err
+			}
+			var total int
+			for _, url := range sortedPRs {
+				data := stats[url]
+				// Skip any CLs reviewed.
+				if !data.opened {
+					continue
+				}
+				total++
+				if err := writer.Write([]string{
+					fmt.Sprintf("%v/%v", data.org, data.repo),
+					url,
+				}); err != nil {
+					return err
+				}
+			}
+			return writer.Write([]string{
+				"Total",
+				fmt.Sprintf("%v", total),
+			})
+		},
+		"github-prs-reviewed": func(writer *csv.Writer) error {
+			if err := writer.Write([]string{"Repo", "URL", "Closed", "Number of comments"}); err != nil {
+				return err
+			}
+			var total, closed, comments int
+			for _, url := range sortedPRs {
+				data := stats[url]
+				// SKip any CLs authored.
+				if data.opened {
+					continue
+				}
+				if data.closed {
+					closed++
+				}
+				comments += data.comments
+				total++
+				if err := writer.Write([]string{
+					fmt.Sprintf("%v/%v", data.org, data.repo),
+					url,
+					strconv.FormatBool(data.closed),
+					fmt.Sprintf("%v", data.comments),
+				}); err != nil {
+					return err
+				}
+			}
+			return writer.Write([]string{
+				"Total",
+				fmt.Sprintf("%v", total),
 				fmt.Sprintf("%v", closed),
 				fmt.Sprintf("%v", comments),
 			})
