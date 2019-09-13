@@ -21,13 +21,17 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 	for _, e := range emails {
 		emailset[e] = true
 	}
-	ownerIDs := make(map[int]bool)
+	type ownerKey struct {
+		project *maintner.GerritProject
+		id      int
+	}
+	ownerIDs := make(map[ownerKey]bool)
 	if err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
 		// First, collect all CLs authored by the user.
 		project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
 			if cl.Owner() != nil && emailset[cl.Owner().Email()] {
-				if cl.Branch() == "master" {
-					ownerIDs[cl.OwnerID()] = true
+				if cl.Branch() == "master" && cl.OwnerID() != -1 {
+					ownerIDs[ownerKey{project, cl.OwnerID()}] = true
 				}
 				if cl.Status == "merged" {
 					if cl.Created.After(start) {
@@ -68,7 +72,7 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 						if err != nil {
 							log.Fatal(err)
 						}
-						if ownerIDs[int(id)] {
+						if ownerIDs[ownerKey{project, int(id)}] {
 							if msg.Date.After(start) {
 								reviewed[cl] = struct{}{}
 								return nil
