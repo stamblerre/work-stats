@@ -99,14 +99,6 @@ func main() {
 		}
 	}
 
-	// Delete "Sheet1" since all of the requests create a new sheet.
-	defer func() {
-		if err := deleteSheet(ctx, spreadsheet.Sheets[0].Properties.SheetId); err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("Wrote data to Google Sheet: %s\n", spreadsheet.SpreadsheetUrl)
-	}()
-
 	// Write out data on the user's activity on the Go project's GitHub issues
 	// and the Go project's Gerrit code reviews.
 	if *gerritFlag {
@@ -137,6 +129,44 @@ func main() {
 		if err := write(ctx, dir, githubIssues); err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	// Some final batch updates to the Google spreadsheet.
+	if *googleSheetsFlag {
+		var requests []*sheets.Request
+		for _, sheet := range spreadsheet.Sheets {
+			requests = append(requests, &sheets.Request{
+				UpdateSheetProperties: &sheets.UpdateSheetPropertiesRequest{
+					Properties: &sheets.SheetProperties{
+						SheetId: sheet.Properties.SheetId,
+						GridProperties: &sheets.GridProperties{
+							FrozenRowCount: 1,
+						},
+					},
+					Fields: "gridProperties.frozenRowCount",
+				},
+			})
+			requests = append(requests, &sheets.Request{
+				AutoResizeDimensions: &sheets.AutoResizeDimensionsRequest{
+					Dimensions: &sheets.DimensionRange{
+						Dimension:  "COLUMNS",
+						SheetId:    sheet.Properties.SheetId,
+						StartIndex: 0,
+						EndIndex:   5,
+					},
+				},
+			})
+		}
+		if _, err := srv.Spreadsheets.BatchUpdate(spreadsheet.SpreadsheetId, &sheets.BatchUpdateSpreadsheetRequest{
+			Requests: requests,
+		}).Context(ctx).Do(); err != nil {
+			log.Fatal(err)
+		}
+		// Delete "Sheet1" since all of the requests create a new sheet.
+		if err := deleteSheet(ctx, spreadsheet.Sheets[0].Properties.SheetId); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("Wrote data to Google Sheet: %s\n", spreadsheet.SpreadsheetUrl)
 	}
 }
 

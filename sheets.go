@@ -14,6 +14,7 @@ import (
 
 func addSheet(ctx context.Context, title string) error {
 	req := &sheets.BatchUpdateSpreadsheetRequest{
+		IncludeSpreadsheetInResponse: true,
 		Requests: []*sheets.Request{
 			{
 				AddSheet: &sheets.AddSheetRequest{
@@ -24,12 +25,17 @@ func addSheet(ctx context.Context, title string) error {
 			},
 		},
 	}
-	_, err := srv.Spreadsheets.BatchUpdate(spreadsheet.SpreadsheetId, req).Context(ctx).Do()
-	return err
+	resp, err := srv.Spreadsheets.BatchUpdate(spreadsheet.SpreadsheetId, req).Context(ctx).Do()
+	if err != nil {
+		return err
+	}
+	spreadsheet = resp.UpdatedSpreadsheet
+	return nil
 }
 
 func deleteSheet(ctx context.Context, id int64) error {
 	req := &sheets.BatchUpdateSpreadsheetRequest{
+		IncludeSpreadsheetInResponse: true,
 		Requests: []*sheets.Request{
 			{
 				DeleteSheet: &sheets.DeleteSheetRequest{
@@ -38,8 +44,12 @@ func deleteSheet(ctx context.Context, id int64) error {
 			},
 		},
 	}
-	_, err := srv.Spreadsheets.BatchUpdate(spreadsheet.SpreadsheetId, req).Context(ctx).Do()
-	return err
+	resp, err := srv.Spreadsheets.BatchUpdate(spreadsheet.SpreadsheetId, req).Context(ctx).Do()
+	if err != nil {
+		return err
+	}
+	spreadsheet = resp.UpdatedSpreadsheet
+	return nil
 }
 
 func writeToSheet(ctx context.Context, id, title string, values [][]interface{}) error {
@@ -64,25 +74,24 @@ func googleSheetsService(ctx context.Context) (*sheets.Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := getOauthToken(ctx, config)
+	tok, err := getOauthToken(ctx, config)
 	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	tok := &oauth2.Token{}
-	if err := json.NewDecoder(f).Decode(tok); err != nil {
 		return nil, err
 	}
 	return sheets.New(config.Client(ctx, tok))
 }
 
-func getOauthToken(ctx context.Context, config *oauth2.Config) (*os.File, error) {
+func getOauthToken(ctx context.Context, config *oauth2.Config) (*oauth2.Token, error) {
 	// token.json stores the user's access and refresh tokens, and is created
 	// automatically when the authorization flow completes for the first time.
 	f, err := os.Open(*tokenFile)
 	if err == nil {
-		return f, nil
+		defer f.Close()
+		tok := &oauth2.Token{}
+		if err := json.NewDecoder(f).Decode(tok); err != nil {
+			return nil, err
+		}
+		return tok, nil
 	}
 	if !os.IsNotExist(err) {
 		return nil, err
@@ -98,10 +107,12 @@ func getOauthToken(ctx context.Context, config *oauth2.Config) (*os.File, error)
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
+
 	if err := json.NewEncoder(f).Encode(tok); err != nil {
 		return nil, err
 	}
-	return f, nil
+	return tok, nil
 }
 
 // Request a token from the web, then returns the retrieved token.
