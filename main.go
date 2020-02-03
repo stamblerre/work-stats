@@ -23,16 +23,16 @@ import (
 var (
 	username = flag.String("username", "", "GitHub username")
 	email    = flag.String("email", "", "Gerrit email or emails, comma-separated")
-	since    = flag.String("since", "", "date since when to collect data")
+	since    = flag.String("since", "", "Date from which to collect data")
 
 	// Optional flags.
 	gerritFlag = flag.Bool("gerrit", true, "If false, do not collect data on Go issues or changelists")
 	gitHubFlag = flag.Bool("github", true, "If false, do not collect data on GitHub issues")
 
 	// Flags relating to Google sheets exporter.
-	googleSheetsFlag = flag.Bool("sheets", true, "If false, do not write output to Google sheets.")
-	credentialsFile  = flag.String("credentials", "credentials.json", "Path to credentials file for Google Sheets.")
-	tokenFile        = flag.String("token", "token.json", "Path to token.json for authentication in Google sheets.")
+	googleSheetsFlag = flag.Bool("sheets", true, "If false, do not write output to Google sheets")
+	credentialsFile  = flag.String("credentials", "credentials.json", "Path to credentials file for Google Sheets")
+	tokenFile        = flag.String("token", "token.json", "Path to token file for authentication in Google sheets")
 
 	// Globals.
 	corpus      *maintner.Corpus
@@ -45,11 +45,11 @@ func main() {
 
 	// Username and email are required flags.
 	// If since is omitted, results reflect all history.
-	if *username == "" {
-		log.Fatalf("please provide a Github username")
+	if *username == "" && *gitHubFlag {
+		log.Fatal("Please provide a GitHub username.")
 	}
-	if *email == "" {
-		log.Fatalf("please provide your Gerrit email")
+	if *email == "" && *gerritFlag {
+		log.Fatal("Please provide your Gerrit email.")
 	}
 	emails := strings.Split(*email, ",")
 
@@ -104,7 +104,7 @@ func main() {
 		if err := deleteSheet(ctx, spreadsheet.Sheets[0].Properties.SheetId); err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("Wrote data to Google Sheet: %s", spreadsheet.SpreadsheetUrl)
+		fmt.Printf("Wrote data to Google Sheet: %s\n", spreadsheet.SpreadsheetUrl)
 	}()
 
 	// Write out data on the user's activity on the Go project's GitHub issues
@@ -129,6 +129,7 @@ func main() {
 
 	// Write out data on the user's activity on GitHub issues outside of the Go project.
 	if *gitHubFlag {
+		initOnce.Do(initCorpus)
 		githubIssues, err := github.IssuesAndPRs(ctx, *username, start)
 		if err != nil {
 			log.Fatal(err)
@@ -139,9 +140,10 @@ func main() {
 	}
 }
 
-func write(ctx context.Context, outputDir string, outputFns map[string][][]string) error {
+func write(ctx context.Context, outputDir string, data map[string][][]string) error {
+	// Write output to disk first.
 	var filenames []string
-	for filename, cells := range outputFns {
+	for filename, cells := range data {
 		fullpath := filepath.Join(outputDir, fmt.Sprintf("%s.csv", filename))
 		file, err := os.Create(fullpath)
 		if err != nil {
@@ -167,8 +169,8 @@ func write(ctx context.Context, outputDir string, outputFns map[string][][]strin
 	if srv == nil {
 		return nil
 	}
-	// Add a new sheet.
-	for filename, cells := range outputFns {
+	// Add a new sheet and write output to its.
+	for filename, cells := range data {
 		if err := addSheet(ctx, filename); err != nil {
 			return err
 		}
