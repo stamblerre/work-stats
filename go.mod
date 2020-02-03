@@ -7,7 +7,6 @@ require (
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/protobuf v1.3.3 // indirect
 	github.com/google/go-github/v28 v28.0.0
-	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/pkg/errors v0.8.1
 	go.opencensus.io v0.22.3 // indirect
 	golang.org/x/build v0.0.0-20190816201024-6cacbcd1953c
