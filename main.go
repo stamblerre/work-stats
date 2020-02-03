@@ -17,6 +17,7 @@ import (
 	"github.com/stamblerre/work-stats/golang"
 	"golang.org/x/build/maintner"
 	"golang.org/x/build/maintner/godata"
+	"google.golang.org/api/sheets/v4"
 )
 
 var (
@@ -25,12 +26,18 @@ var (
 	since    = flag.String("since", "", "date since when to collect data")
 
 	// Optional flags.
-	goIssuesFlag      = flag.Bool("go_issues", true, "If false, do not collect data on Go issues")
-	goChangelistsFlag = flag.Bool("go_cls", true, "If false, do not collect data on Go changelists")
-	githubIssuesFlag  = flag.Bool("github_issues", true, "If false, do not collect data on GitHub issues")
+	gerritFlag = flag.Bool("gerrit", true, "If false, do not collect data on Go issues or changelists")
+	gitHubFlag = flag.Bool("github", true, "If false, do not collect data on GitHub issues")
+
+	// Flags relating to Google sheets exporter.
+	googleSheetsFlag = flag.Bool("sheets", true, "If false, do not write output to Google sheets.")
+	credentialsFile  = flag.String("credentials", "credentials.json", "Path to credentials file for Google Sheets.")
+	tokenFile        = flag.String("token", "token.json", "Path to token.json for authentication in Google sheets.")
 
 	// Globals.
-	corpus *maintner.Corpus
+	corpus      *maintner.Corpus
+	srv         *sheets.Service
+	spreadsheet *sheets.Spreadsheet
 )
 
 func main() {
@@ -75,47 +82,66 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		if !*googleSheetsFlag {
+			return
+		}
+		srv, err = googleSheetsService(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
+		spreadsheet, err = srv.Spreadsheets.Create(&sheets.Spreadsheet{
+			Properties: &sheets.SpreadsheetProperties{
+				Title: fmt.Sprintf("Work Stats (as of %s)", start.Format("01-02-2006")),
+			},
+		}).Context(ctx).Do()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
-	// Write out data on the user's activity on the Go project's GitHub issues.
-	if *goIssuesFlag {
+	// Delete "Sheet1" since all of the requests create a new sheet.
+	defer func() {
+		if err := deleteSheet(ctx, spreadsheet.Sheets[0].Properties.SheetId); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("Wrote data to Google Sheet: %s", spreadsheet.SpreadsheetUrl)
+	}()
+
+	// Write out data on the user's activity on the Go project's GitHub issues
+	// and the Go project's Gerrit code reviews.
+	if *gerritFlag {
 		initOnce.Do(initCorpus)
 		goIssues, err := golang.Issues(corpus.GitHub(), *username, start)
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := write(dir, goIssues); err != nil {
+		if err := write(ctx, dir, goIssues); err != nil {
 			log.Fatal(err)
 		}
-	}
-
-	// Write out data on the user's activity on the Go project's Gerrit code reviews.
-	if *goChangelistsFlag {
-		initOnce.Do(initCorpus)
 		goCLs, err := golang.Changelists(corpus.Gerrit(), emails, start)
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := write(dir, goCLs); err != nil {
+		if err := write(ctx, dir, goCLs); err != nil {
 			log.Fatal(err)
 		}
 	}
 
 	// Write out data on the user's activity on GitHub issues outside of the Go project.
-	if *githubIssuesFlag {
+	if *gitHubFlag {
 		githubIssues, err := github.IssuesAndPRs(ctx, *username, start)
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := write(dir, githubIssues); err != nil {
+		if err := write(ctx, dir, githubIssues); err != nil {
 			log.Fatal(err)
 		}
 	}
 }
 
-func write(outputDir string, outputFns map[string]func(writer *csv.Writer) error) error {
+func write(ctx context.Context, outputDir string, outputFns map[string][][]string) error {
 	var filenames []string
-	for filename, fn := range outputFns {
+	for filename, cells := range outputFns {
 		fullpath := filepath.Join(outputDir, fmt.Sprintf("%s.csv", filename))
 		file, err := os.Create(fullpath)
 		if err != nil {
@@ -126,13 +152,37 @@ func write(outputDir string, outputFns map[string]func(writer *csv.Writer) error
 		writer := csv.NewWriter(file)
 		defer writer.Flush()
 
-		if err := fn(writer); err != nil {
-			return err
+		for _, row := range cells {
+			if err := writer.Write(row); err != nil {
+				return err
+			}
 		}
 		filenames = append(filenames, fullpath)
 	}
 	for _, filename := range filenames {
 		fmt.Printf("Wrote output to %s\n", filename)
+	}
+
+	// Return early if we are not writing to Google Sheets.
+	if srv == nil {
+		return nil
+	}
+	// Add a new sheet.
+	for filename, cells := range outputFns {
+		if err := addSheet(ctx, filename); err != nil {
+			return err
+		}
+		values := [][]interface{}{}
+		for _, row := range cells {
+			var record []interface{}
+			for _, cell := range row {
+				record = append(record, cell)
+			}
+			values = append(values, record)
+		}
+		if err := writeToSheet(ctx, spreadsheet.SpreadsheetId, filename, values); err != nil {
+			return err
+		}
 	}
 	return nil
 }

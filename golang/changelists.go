@@ -1,7 +1,6 @@
 package golang
 
 import (
-	"encoding/csv"
 	"fmt"
 	"log"
 	"sort"
@@ -14,7 +13,7 @@ import (
 )
 
 // Get some statistics on issues opened, closed, and commented on.
-func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map[string]func(writer *csv.Writer) error, error) {
+func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map[string][][]string, error) {
 	authored := make(map[*maintner.GerritCL]struct{})
 	reviewed := make(map[*maintner.GerritCL]struct{})
 	emailset := make(map[string]bool)
@@ -86,43 +85,50 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 	}); err != nil {
 		return nil, err
 	}
-	return map[string]func(*csv.Writer) error{
-		"golang-authored": func(writer *csv.Writer) error {
-			var sorted []*maintner.GerritCL
-			for cl := range authored {
-				sorted = append(sorted, cl)
-			}
-			sort.Slice(sorted, func(i, j int) bool {
-				return sorted[i].Created.Before(sorted[j].Created)
+
+	var authoredCells [][]string
+	{
+		var sorted []*maintner.GerritCL
+		for cl := range authored {
+			sorted = append(sorted, cl)
+		}
+		sort.Slice(sorted, func(i, j int) bool {
+			return sorted[i].Created.Before(sorted[j].Created)
+		})
+		authoredCells = append(authoredCells, []string{"CL", "Description"})
+		for _, cl := range sorted {
+			authoredCells = append(authoredCells, []string{
+				// TODO: Technically should insert the -review into cl.Project.Server().
+				fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number),
+				cl.Subject(),
 			})
-			writer.Write([]string{"CL", "Description"})
-			for _, cl := range sorted {
-				writer.Write([]string{
-					// TODO: Technically should insert the -review into cl.Project.Server().
-					fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number),
-					cl.Subject(),
-				})
-			}
-			return writer.Write([]string{"Total", fmt.Sprintf("%v", len(authored))})
-		},
-		"golang-reviewed": func(writer *csv.Writer) error {
-			var sorted []*maintner.GerritCL
-			for cl := range reviewed {
-				sorted = append(sorted, cl)
-			}
-			sort.Slice(sorted, func(i, j int) bool {
-				return sorted[i].Created.Before(sorted[j].Created)
+		}
+		authoredCells = append(authoredCells, ([]string{"Total", fmt.Sprintf("%v", len(authored))}))
+	}
+
+	var reviewedCells [][]string
+	{
+		var sorted []*maintner.GerritCL
+		for cl := range reviewed {
+			sorted = append(sorted, cl)
+		}
+		sort.Slice(sorted, func(i, j int) bool {
+			return sorted[i].Created.Before(sorted[j].Created)
+		})
+		reviewedCells = append(reviewedCells, []string{"CL", "Author", "Description"})
+		for _, cl := range sorted {
+			reviewedCells = append(reviewedCells, []string{
+				// TODO: Technically should insert the -review into cl.Project.Server().
+				fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number),
+				cl.Owner().Email(),
+				cl.Subject(),
 			})
-			writer.Write([]string{"CL", "Author", "Description"})
-			for _, cl := range sorted {
-				writer.Write([]string{
-					// TODO: Technically should insert the -review into cl.Project.Server().
-					fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number),
-					cl.Owner().Email(),
-					cl.Subject(),
-				})
-			}
-			return writer.Write([]string{"Total", fmt.Sprintf("%v", len(reviewed))})
-		},
+		}
+		reviewedCells = append(reviewedCells, []string{"Total", fmt.Sprintf("%v", len(reviewed))})
+	}
+
+	return map[string][][]string{
+		"golang-authored": authoredCells,
+		"golang-reviewed": reviewedCells,
 	}, nil
 }

@@ -2,7 +2,6 @@ package github
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
 	"os"
 	"sort"
@@ -22,7 +21,7 @@ type issueData struct {
 	isPR           bool
 }
 
-func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[string]func(*csv.Writer) error, error) {
+func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[string][][]string, error) {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
 		return nil, fmt.Errorf("GITHUB_TOKEN environment variable is not configured")
@@ -110,101 +109,98 @@ func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[st
 		sortedPRs = append(sortedPRs, url)
 	}
 
+	var issuesCells [][]string
+	{
+		sorted := make([]string, 0, len(stats))
+		for url, data := range stats {
+			if data.isPR {
+				continue
+			}
+			sorted = append(sorted, url)
+		}
+		sort.Strings(sorted)
+		issuesCells = append(issuesCells, []string{"Issue", "Opened", "Closed", "Number of Comments"})
+		var opened, closed, comments int
+		for _, url := range sorted {
+			data := stats[url]
+			if data.opened {
+				opened++
+			}
+			if data.closed {
+				closed++
+			}
+			comments += data.comments
+			issuesCells = append(issuesCells, []string{
+				url,
+				strconv.FormatBool(data.opened),
+				strconv.FormatBool(data.closed),
+				fmt.Sprintf("%v", data.comments),
+			})
+		}
+		issuesCells = append(issuesCells, []string{
+			fmt.Sprintf("%v", len(stats)),
+			fmt.Sprintf("%v", opened),
+			fmt.Sprintf("%v", closed),
+			fmt.Sprintf("%v", comments),
+		})
+	}
+
+	var authoredCells [][]string
+	{
+		authoredCells = append(authoredCells, []string{"Repo", "URL"})
+		var total int
+		for _, url := range sortedPRs {
+			data := stats[url]
+			// Skip any CLs reviewed.
+			if !data.opened {
+				continue
+			}
+			total++
+			authoredCells = append(authoredCells, []string{
+				fmt.Sprintf("%v/%v", data.org, data.repo),
+				url,
+			})
+		}
+		authoredCells = append(authoredCells, []string{
+			"Total",
+			fmt.Sprintf("%v", total),
+		})
+	}
+
+	var reviewedCells [][]string
+	{
+		reviewedCells = append(reviewedCells, []string{"Repo", "URL", "Closed", "Number of comments"})
+		var total, closed, comments int
+		for _, url := range sortedPRs {
+			data := stats[url]
+			// SKip any CLs authored.
+			if data.opened {
+				continue
+			}
+			if data.closed {
+				closed++
+			}
+			comments += data.comments
+			total++
+			reviewedCells = append(reviewedCells, []string{
+				fmt.Sprintf("%v/%v", data.org, data.repo),
+				url,
+				strconv.FormatBool(data.closed),
+				fmt.Sprintf("%v", data.comments),
+			})
+		}
+		reviewedCells = append(reviewedCells, []string{
+			"Total",
+			fmt.Sprintf("%v", total),
+			fmt.Sprintf("%v", closed),
+			fmt.Sprintf("%v", comments),
+		})
+	}
+
 	// TODO(rstambler): Add per-repo totals.
-	return map[string]func(*csv.Writer) error{
-		"github-issues": func(writer *csv.Writer) error {
-			sorted := make([]string, 0, len(stats))
-			for url, data := range stats {
-				if data.isPR {
-					continue
-				}
-				sorted = append(sorted, url)
-			}
-			sort.Strings(sorted)
-			if err := writer.Write([]string{"Issue", "Opened", "Closed", "Number of Comments"}); err != nil {
-				return err
-			}
-			var opened, closed, comments int
-			for _, url := range sorted {
-				data := stats[url]
-				if data.opened {
-					opened++
-				}
-				if data.closed {
-					closed++
-				}
-				comments += data.comments
-				if err := writer.Write([]string{
-					url,
-					strconv.FormatBool(data.opened),
-					strconv.FormatBool(data.closed),
-					fmt.Sprintf("%v", data.comments),
-				}); err != nil {
-					return err
-				}
-			}
-			return writer.Write([]string{
-				fmt.Sprintf("%v", len(stats)),
-				fmt.Sprintf("%v", opened),
-				fmt.Sprintf("%v", closed),
-				fmt.Sprintf("%v", comments),
-			})
-		},
-		"github-prs-authored": func(writer *csv.Writer) error {
-			if err := writer.Write([]string{"Repo", "URL"}); err != nil {
-				return err
-			}
-			var total int
-			for _, url := range sortedPRs {
-				data := stats[url]
-				// Skip any CLs reviewed.
-				if !data.opened {
-					continue
-				}
-				total++
-				if err := writer.Write([]string{
-					fmt.Sprintf("%v/%v", data.org, data.repo),
-					url,
-				}); err != nil {
-					return err
-				}
-			}
-			return writer.Write([]string{
-				"Total",
-				fmt.Sprintf("%v", total),
-			})
-		},
-		"github-prs-reviewed": func(writer *csv.Writer) error {
-			if err := writer.Write([]string{"Repo", "URL", "Closed", "Number of comments"}); err != nil {
-				return err
-			}
-			var total, closed, comments int
-			for _, url := range sortedPRs {
-				data := stats[url]
-				// SKip any CLs authored.
-				if data.opened {
-					continue
-				}
-				if data.closed {
-					closed++
-				}
-				comments += data.comments
-				total++
-				if err := writer.Write([]string{
-					fmt.Sprintf("%v/%v", data.org, data.repo),
-					url,
-					strconv.FormatBool(data.closed),
-					fmt.Sprintf("%v", data.comments),
-				}); err != nil {
-					return err
-				}
-			}
-			return writer.Write([]string{
-				"Total",
-				fmt.Sprintf("%v", total),
-				fmt.Sprintf("%v", closed),
-				fmt.Sprintf("%v", comments),
-			})
-		},
+	return map[string][][]string{
+		"github-issues":       issuesCells,
+		"github-prs-authored": authoredCells,
+		"github-prs-reviewed": reviewedCells,
 	}, nil
 }

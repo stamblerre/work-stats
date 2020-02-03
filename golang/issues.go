@@ -1,7 +1,6 @@
 package golang
 
 import (
-	"encoding/csv"
 	"fmt"
 	"sort"
 	"strconv"
@@ -16,7 +15,7 @@ type commentData struct {
 }
 
 // Get some statistics on issues opened, closed, and commented on.
-func Issues(github *maintner.GitHub, username string, start time.Time) (map[string]func(writer *csv.Writer) error, error) {
+func Issues(github *maintner.GitHub, username string, start time.Time) (map[string][][]string, error) {
 	stats := make(map[*maintner.GitHubIssue]*commentData)
 
 	// Only use the golang/go repo, since we don't file issues elsewhere.
@@ -59,45 +58,42 @@ func Issues(github *maintner.GitHub, username string, start time.Time) (map[stri
 		})
 		return nil
 	})
-	return map[string]func(*csv.Writer) error{
-		"golang-issues": func(writer *csv.Writer) error {
-			var opened, closed, comments int
-			if err := writer.Write([]string{"issue number", "opened", "closed", "num comments"}); err != nil {
-				return err
-			}
-			var sorted []*maintner.GitHubIssue
-			for issue := range stats {
-				sorted = append(sorted, issue)
-			}
-			sort.Slice(sorted, func(i, j int) bool {
-				return sorted[i].Created.Before(sorted[j].Created)
-			})
-			for _, issue := range sorted {
-				data := stats[issue]
-				if data.opened {
-					opened++
-				}
-				if data.closed {
-					closed++
-				}
-				comments += data.numComments
-				record := []string{
-					fmt.Sprintf("github.com/%s/%s/issues/%v", repo.ID().Owner, repo.ID().Repo, issue.Number),
-					strconv.FormatBool(data.opened),
-					strconv.FormatBool(data.closed),
-					fmt.Sprintf("%v", data.numComments),
-				}
-				if err := writer.Write(record); err != nil {
-					return err
-				}
-			}
-			// Write out the totals.
-			return writer.Write([]string{
-				"Total",
-				fmt.Sprintf("%v", opened),
-				fmt.Sprintf("%v", closed),
-				fmt.Sprintf("%v", comments),
-			})
-		},
+
+	var cells [][]string
+	cells = append(cells, []string{"issue number", "opened", "closed", "num comments"})
+
+	var opened, closed, comments int
+	var sorted []*maintner.GitHubIssue
+	for issue := range stats {
+		sorted = append(sorted, issue)
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Created.Before(sorted[j].Created)
+	})
+	for _, issue := range sorted {
+		data := stats[issue]
+		if data.opened {
+			opened++
+		}
+		if data.closed {
+			closed++
+		}
+		comments += data.numComments
+		cells = append(cells, []string{
+			fmt.Sprintf("github.com/%s/%s/issues/%v", repo.ID().Owner, repo.ID().Repo, issue.Number),
+			strconv.FormatBool(data.opened),
+			strconv.FormatBool(data.closed),
+			fmt.Sprintf("%v", data.numComments),
+		})
+	}
+	// Write out the totals.
+	cells = append(cells, []string{
+		"Total",
+		fmt.Sprintf("%v", opened),
+		fmt.Sprintf("%v", closed),
+		fmt.Sprintf("%v", comments),
+	})
+	return map[string][][]string{
+		"golang-issues": cells,
 	}, nil
 }
