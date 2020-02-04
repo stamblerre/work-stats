@@ -12,53 +12,6 @@ import (
 	"google.golang.org/api/sheets/v4"
 )
 
-func addSheet(ctx context.Context, title string) error {
-	req := &sheets.BatchUpdateSpreadsheetRequest{
-		IncludeSpreadsheetInResponse: true,
-		Requests: []*sheets.Request{
-			{
-				AddSheet: &sheets.AddSheetRequest{
-					Properties: &sheets.SheetProperties{
-						Title: title,
-					},
-				},
-			},
-		},
-	}
-	resp, err := srv.Spreadsheets.BatchUpdate(spreadsheet.SpreadsheetId, req).Context(ctx).Do()
-	if err != nil {
-		return err
-	}
-	spreadsheet = resp.UpdatedSpreadsheet
-	return nil
-}
-
-func deleteSheet(ctx context.Context, id int64) error {
-	req := &sheets.BatchUpdateSpreadsheetRequest{
-		IncludeSpreadsheetInResponse: true,
-		Requests: []*sheets.Request{
-			{
-				DeleteSheet: &sheets.DeleteSheetRequest{
-					SheetId: id,
-				},
-			},
-		},
-	}
-	resp, err := srv.Spreadsheets.BatchUpdate(spreadsheet.SpreadsheetId, req).Context(ctx).Do()
-	if err != nil {
-		return err
-	}
-	spreadsheet = resp.UpdatedSpreadsheet
-	return nil
-}
-
-func writeToSheet(ctx context.Context, id, title string, values [][]interface{}) error {
-	_, err := srv.Spreadsheets.Values.Update(id, title, &sheets.ValueRange{
-		Values: values,
-	}).Context(ctx).ValueInputOption("RAW").Do()
-	return err
-}
-
 func googleSheetsService(ctx context.Context) (*sheets.Service, error) {
 	// Return early if we aren't also writing to a Google Sheet.
 	if !*googleSheetsFlag {

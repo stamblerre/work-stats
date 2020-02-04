@@ -36,7 +36,6 @@ var (
 
 	// Globals.
 	corpus      *maintner.Corpus
-	srv         *sheets.Service
 	spreadsheet *sheets.Spreadsheet
 )
 
@@ -82,20 +81,10 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		if !*googleSheetsFlag {
-			return
-		}
-		srv, err = googleSheetsService(ctx)
-		if err != nil {
-			log.Fatal(err)
-		}
-		spreadsheet, err = srv.Spreadsheets.Create(&sheets.Spreadsheet{
+		spreadsheet = &sheets.Spreadsheet{
 			Properties: &sheets.SpreadsheetProperties{
 				Title: fmt.Sprintf("Work Stats (as of %s)", start.Format("01-02-2006")),
 			},
-		}).Context(ctx).Do()
-		if err != nil {
-			log.Fatal(err)
 		}
 	}
 
@@ -130,44 +119,38 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-
-	// Some final batch updates to the Google spreadsheet.
-	if *googleSheetsFlag {
-		var requests []*sheets.Request
-		for _, sheet := range spreadsheet.Sheets {
-			requests = append(requests, &sheets.Request{
-				UpdateSheetProperties: &sheets.UpdateSheetPropertiesRequest{
-					Properties: &sheets.SheetProperties{
-						SheetId: sheet.Properties.SheetId,
-						GridProperties: &sheets.GridProperties{
-							FrozenRowCount: 1,
-						},
-					},
-					Fields: "gridProperties.frozenRowCount",
-				},
-			})
-			requests = append(requests, &sheets.Request{
-				AutoResizeDimensions: &sheets.AutoResizeDimensionsRequest{
-					Dimensions: &sheets.DimensionRange{
-						Dimension:  "COLUMNS",
-						SheetId:    sheet.Properties.SheetId,
-						StartIndex: 0,
-						EndIndex:   5,
-					},
-				},
-			})
-		}
-		if _, err := srv.Spreadsheets.BatchUpdate(spreadsheet.SpreadsheetId, &sheets.BatchUpdateSpreadsheetRequest{
-			Requests: requests,
-		}).Context(ctx).Do(); err != nil {
-			log.Fatal(err)
-		}
-		// Delete "Sheet1" since all of the requests create a new sheet.
-		if err := deleteSheet(ctx, spreadsheet.Sheets[0].Properties.SheetId); err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("Wrote data to Google Sheet: %s\n", spreadsheet.SpreadsheetUrl)
+	if !*googleSheetsFlag {
+		return
 	}
+	// Create the spreadsheet.
+	srv, err := googleSheetsService(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	s, err := srv.Spreadsheets.Create(spreadsheet).Context(ctx).Do()
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Auto-resize the columns of the spreadsheet to fit.
+	var requests []*sheets.Request
+	for _, sheet := range s.Sheets {
+		requests = append(requests, &sheets.Request{
+			AutoResizeDimensions: &sheets.AutoResizeDimensionsRequest{
+				Dimensions: &sheets.DimensionRange{
+					Dimension:  "COLUMNS",
+					SheetId:    sheet.Properties.SheetId,
+					StartIndex: 0,
+					EndIndex:   5,
+				},
+			},
+		})
+	}
+	if _, err := srv.Spreadsheets.BatchUpdate(s.SpreadsheetId, &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: requests,
+	}).Context(ctx).Do(); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Wrote data to Google Sheet: %s\n", s.SpreadsheetUrl)
 }
 
 func write(ctx context.Context, outputDir string, data map[string][][]string) error {
@@ -192,29 +175,32 @@ func write(ctx context.Context, outputDir string, data map[string][][]string) er
 		filenames = append(filenames, fullpath)
 	}
 	for _, filename := range filenames {
-		fmt.Printf("Wrote output to %s\n", filename)
+		fmt.Printf("Wrote output to %s.\n", filename)
 	}
-
-	// Return early if we are not writing to Google Sheets.
-	if srv == nil {
-		return nil
-	}
-	// Add a new sheet and write output to its.
+	// Add a new sheet and write output to it.
 	for filename, cells := range data {
-		if err := addSheet(ctx, filename); err != nil {
-			return err
+		sheet := &sheets.Sheet{
+			Properties: &sheets.SheetProperties{
+				Title: filename,
+				GridProperties: &sheets.GridProperties{
+					FrozenRowCount: 1,
+				},
+			},
 		}
-		values := [][]interface{}{}
+		gd := &sheets.GridData{}
 		for _, row := range cells {
-			var record []interface{}
+			rd := &sheets.RowData{}
 			for _, cell := range row {
-				record = append(record, cell)
+				rd.Values = append(rd.Values, &sheets.CellData{
+					UserEnteredValue: &sheets.ExtendedValue{
+						StringValue: cell,
+					},
+				})
 			}
-			values = append(values, record)
+			gd.RowData = append(gd.RowData, rd)
 		}
-		if err := writeToSheet(ctx, spreadsheet.SpreadsheetId, filename, values); err != nil {
-			return err
-		}
+		sheet.Data = append(sheet.Data, gd)
+		spreadsheet.Sheets = append(spreadsheet.Sheets, sheet)
 	}
 	return nil
 }
