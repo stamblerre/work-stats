@@ -93,13 +93,15 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 			sorted = append(sorted, cl)
 		}
 		sort.Slice(sorted, func(i, j int) bool {
-			return sorted[i].Created.Before(sorted[j].Created)
+			if sorted[i].Project.Project() == sorted[j].Project.Project() {
+				return sorted[i].Created.Before(sorted[j].Created)
+			}
+			return sorted[i].Project.Project() < sorted[j].Project.Project()
 		})
 		authoredCells = append(authoredCells, []string{"CL", "Description"})
 		for _, cl := range sorted {
 			authoredCells = append(authoredCells, []string{
-				// TODO: Technically should insert the -review into cl.Project.Server().
-				fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number),
+				formatCL(cl),
 				cl.Subject(),
 			})
 		}
@@ -108,21 +110,41 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 
 	var reviewedCells [][]string
 	{
-		var sorted []*maintner.GerritCL
-		for cl := range reviewed {
-			sorted = append(sorted, cl)
+		type key struct {
+			email, project string
 		}
-		sort.Slice(sorted, func(i, j int) bool {
-			return sorted[i].Created.Before(sorted[j].Created)
-		})
-		reviewedCells = append(reviewedCells, []string{"CL", "Author", "Description"})
-		for _, cl := range sorted {
-			reviewedCells = append(reviewedCells, []string{
-				// TODO: Technically should insert the -review into cl.Project.Server().
-				fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number),
-				cl.Owner().Email(),
-				cl.Subject(),
+		grouped := make(map[key][]*maintner.GerritCL)
+		var keys []key
+		for cl := range reviewed {
+			k := key{
+				email:   cl.Owner().Email(),
+				project: cl.Project.Project(),
+			}
+			if _, ok := grouped[k]; !ok {
+				keys = append(keys, k)
+			}
+			grouped[k] = append(grouped[k], cl)
+		}
+		for _, v := range grouped {
+			sort.Slice(v, func(i, j int) bool {
+				return v[i].Created.Before(v[j].Created)
 			})
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			if keys[i].project == keys[j].project {
+				return keys[i].email < keys[j].email
+			}
+			return keys[i].project < keys[j].project
+		})
+		reviewedCells = append(reviewedCells, []string{"CL", "Description"})
+		for _, k := range keys {
+			for _, cl := range grouped[k] {
+				reviewedCells = append(reviewedCells, []string{
+					formatCL(cl),
+					cl.Subject(),
+				})
+			}
+			reviewedCells = append(reviewedCells, []string{"Subtotal", k.email, fmt.Sprintf("%d", len(grouped[k]))})
 		}
 		reviewedCells = append(reviewedCells, []string{"Total", fmt.Sprintf("%v", len(reviewed))})
 	}
@@ -131,4 +153,9 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 		"golang-authored": authoredCells,
 		"golang-reviewed": reviewedCells,
 	}, nil
+}
+
+func formatCL(cl *maintner.GerritCL) string {
+	// TODO: Technically should insert the -review into cl.Project.Server().
+	return fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number)
 }

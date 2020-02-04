@@ -60,7 +60,7 @@ func Issues(github *maintner.GitHub, username string, start time.Time) (map[stri
 	})
 
 	var cells [][]string
-	cells = append(cells, []string{"issue number", "opened", "closed", "num comments"})
+	cells = append(cells, []string{"Issue", "Opened", "Closed", "Number of Comments"})
 
 	var opened, closed, comments int
 	var sorted []*maintner.GitHubIssue

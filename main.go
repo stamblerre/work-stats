@@ -188,14 +188,32 @@ func write(ctx context.Context, outputDir string, data map[string][][]string) er
 			},
 		}
 		gd := &sheets.GridData{}
-		for _, row := range cells {
+		for i, row := range cells {
+			bold := i == 0
 			rd := &sheets.RowData{}
 			for _, cell := range row {
-				rd.Values = append(rd.Values, &sheets.CellData{
+				var shade bool
+				if len(row) >= 1 && (row[0] == "Total" || row[0] == "Subtotal") {
+					shade = true
+				}
+				cd := &sheets.CellData{
 					UserEnteredValue: &sheets.ExtendedValue{
 						StringValue: cell,
 					},
-				})
+					UserEnteredFormat: &sheets.CellFormat{
+						TextFormat: &sheets.TextFormat{
+							Bold: bold,
+						},
+					},
+				}
+				if shade {
+					cd.UserEnteredFormat.BackgroundColor = &sheets.Color{
+						Blue:  0.93725490196,
+						Green: 0.93725490196,
+						Red:   0.93725490196,
+					}
+				}
+				rd.Values = append(rd.Values, cd)
 			}
 			gd.RowData = append(gd.RowData, rd)
 		}
