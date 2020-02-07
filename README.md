@@ -17,15 +17,30 @@ It exports CSV files for the following:
 
 ## Run
 
-Grab a token from https://github.com/settings/tokens.
+### Go-specific contribution data
 
-It will need: `read:discussion, read:enterprise, read:gpg_key, read:org, read:packages, read:public_key, read:repo_hook, repo, user`.
+```shell
+$ $ work-stats --email=bob@gmail.com,bob@golang.org --since=2019-01-01
+```
+
+### Other GitHub contributions
+Grab a token from https://github.com/settings/tokens. It will need: `read:discussion, read:enterprise, read:gpg_key, read:org, read:packages, read:public_key, read:repo_hook, repo, user`. You will also need to pass in your GitHub username.
 
 ```shell
 $ export GITHUB_TOKEN=<your token>
 $ work-stats --username=bob --email=bob@gmail.com,bob@golang.org --since=2019-01-01
 ```
 
-## In progress
+### Export data to Google Sheets
 
-This tool can also generate a Google Sheet containing the CSV files as different sheets. To do this, the user will need to create a Google Cloud project with the Google Sheets API enabled. This is an obstacle to usage of this tool, so work still needs to be done to simplify this process. As of 02/02/2020, the [Go Google Sheets API Tutorial](https://developers.google.com/sheets/api/quickstart/go) details all of the necessary steps. In particular, the user must enable the Google Sheets API and download the `credentials.json` file. When the application first runs, it will request the user's authorization of the app and generate a `token.json`.
+This is a bit more involved, but the output will be a formatted Google sheet with different tabs for each category. To use the Google Sheets API, you will need to create a Google Cloud project with the Google Sheets API enabled. The easiest way to do this is by following the link on the [Google Sheets API tutorial](https://developers.google.com/sheets/api/quickstart/go). It will create a project with the name "Quickstart". It will prompt you to download a `credentials.json` file. The path to that file will need to be passed in through the `-credentials` flag. This credential will be used to generate a token the first time you run the program. Pass the file path at which you would like the token to be created through the  `-token` flag.
+
+Alternatively, if you do not follow the Quickstart link, you can go to https://pantheon.corp.google.com/apis and create a new project with any name. Click on "Enable APIs", select the Google Sheets API, and clicking "Enable". Then click "APIs & Services" -> "Credentials" -> "Create Credentials" -> "Oauth client ID". Once the credential is created, click the download button on the right. The path to this credential will be passed through the `-credentials` flag. This credential will be used to generate a token the first time you run the program. Pass the path of where the token should be created through the  `-token` flag.
+
+The command will then be:
+
+```shell
+$ work-stats --username=bob --email=bob@gmail.com,bob@golang.org --since=2019-01-01 --sheets=true --credentials=/path/to/credentials.json --token=/path/to/token.json
+```
+
+Make sure to add `-sheets` to turn on the Google sheets feature. When you first create the token, you will be prompted to authorize your Google Clould project to access your Google account by following a link. The link to your Google sheet will be printed when the program exits.
