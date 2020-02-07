@@ -127,30 +127,28 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s, err := srv.Spreadsheets.Create(spreadsheet).Context(ctx).Do()
+	spreadsheet, err := srv.Spreadsheets.Create(spreadsheet).Context(ctx).Do()
 	if err != nil {
 		log.Fatal(err)
 	}
 	// Auto-resize the columns of the spreadsheet to fit.
 	var requests []*sheets.Request
-	for _, sheet := range s.Sheets {
+	for _, sheet := range spreadsheet.Sheets {
 		requests = append(requests, &sheets.Request{
 			AutoResizeDimensions: &sheets.AutoResizeDimensionsRequest{
 				Dimensions: &sheets.DimensionRange{
-					Dimension:  "COLUMNS",
-					SheetId:    sheet.Properties.SheetId,
-					StartIndex: 0,
-					EndIndex:   5,
+					Dimension: "COLUMNS",
+					SheetId:   sheet.Properties.SheetId,
 				},
 			},
 		})
 	}
-	if _, err := srv.Spreadsheets.BatchUpdate(s.SpreadsheetId, &sheets.BatchUpdateSpreadsheetRequest{
+	if _, err := srv.Spreadsheets.BatchUpdate(spreadsheet.SpreadsheetId, &sheets.BatchUpdateSpreadsheetRequest{
 		Requests: requests,
 	}).Context(ctx).Do(); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("Wrote data to Google Sheet: %s\n", s.SpreadsheetUrl)
+	fmt.Printf("Wrote data to Google Sheet: %s\n", spreadsheet.SpreadsheetUrl)
 }
 
 func write(ctx context.Context, outputDir string, data map[string][][]string) error {
@@ -189,12 +187,12 @@ func write(ctx context.Context, outputDir string, data map[string][][]string) er
 		}
 		gd := &sheets.GridData{}
 		for i, row := range cells {
-			bold := i == 0
 			rd := &sheets.RowData{}
 			for _, cell := range row {
-				var shade bool
-				if len(row) >= 1 && (row[0] == "Total" || row[0] == "Subtotal") {
-					shade = true
+				var total, subtotal bool
+				if len(row) >= 1 {
+					total = row[0] == "Total"
+					subtotal = row[0] == "Subtotal"
 				}
 				cd := &sheets.CellData{
 					UserEnteredValue: &sheets.ExtendedValue{
@@ -202,15 +200,21 @@ func write(ctx context.Context, outputDir string, data map[string][][]string) er
 					},
 					UserEnteredFormat: &sheets.CellFormat{
 						TextFormat: &sheets.TextFormat{
-							Bold: bold,
+							Bold: i == 0 || total || subtotal,
 						},
 					},
 				}
-				if shade {
+				if subtotal {
 					cd.UserEnteredFormat.BackgroundColor = &sheets.Color{
-						Blue:  0.93725490196,
-						Green: 0.93725490196,
-						Red:   0.93725490196,
+						Blue:  0.96,
+						Green: 0.96,
+						Red:   0.96,
+					}
+				} else if total {
+					cd.UserEnteredFormat.BackgroundColor = &sheets.Color{
+						Blue:  0.92,
+						Green: 0.92,
+						Red:   0.92,
 					}
 				}
 				rd.Values = append(rd.Values, cd)

@@ -101,14 +101,6 @@ func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[st
 		}
 	}
 
-	sortedPRs := make([]string, 0, len(stats))
-	for url, data := range stats {
-		if !data.isPR {
-			continue
-		}
-		sortedPRs = append(sortedPRs, url)
-	}
-
 	var issuesCells [][]string
 	{
 		sorted := make([]string, 0, len(stats))
@@ -144,6 +136,15 @@ func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[st
 			fmt.Sprintf("%v", comments),
 		})
 	}
+
+	sortedPRs := make([]string, 0, len(stats))
+	for url, data := range stats {
+		if !data.isPR {
+			continue
+		}
+		sortedPRs = append(sortedPRs, url)
+	}
+	sort.Strings(sortedPRs)
 
 	var authoredCells [][]string
 	{
