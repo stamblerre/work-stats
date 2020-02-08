@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -17,26 +19,30 @@ import (
 	"github.com/stamblerre/work-stats/golang"
 	"golang.org/x/build/maintner"
 	"golang.org/x/build/maintner/godata"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/sheets/v4"
 )
 
 var (
 	username = flag.String("username", "", "GitHub username")
 	email    = flag.String("email", "", "Gerrit email or emails, comma-separated")
-	since    = flag.String("since", "", "Date from which to collect data")
+	since    = flag.String("since", "", "date from which to collect data")
 
 	// Optional flags.
-	gerritFlag = flag.Bool("gerrit", true, "If false, do not collect data on Go issues or changelists")
-	gitHubFlag = flag.Bool("github", true, "If false, do not collect data on GitHub issues")
+	gerritFlag = flag.Bool("gerrit", true, "collect data on Go issues or changelists")
+	gitHubFlag = flag.Bool("github", true, "collect data on GitHub issues")
 
 	// Flags relating to Google sheets exporter.
-	googleSheetsFlag = flag.Bool("sheets", true, "If false, do not write output to Google sheets")
-	credentialsFile  = flag.String("credentials", "credentials.json", "Path to credentials file for Google Sheets")
-	tokenFile        = flag.String("token", "token.json", "Path to token file for authentication in Google sheets")
+	googleSheetsFlag = flag.String("sheets", "new", "write or append output to a Google spreadsheet (either \"\", \"new\", or the URL of an existing sheet)")
+	credentialsFile  = flag.String("credentials", "credentials.json", "path to credentials file for Google Sheets")
+	tokenFile        = flag.String("token", "token.json", "path to token file for authentication in Google sheets")
 
 	// Globals.
-	corpus      *maintner.Corpus
-	spreadsheet *sheets.Spreadsheet
+	corpus          *maintner.Corpus
+	spreadsheet     *sheets.Spreadsheet
+	spreadsheetIDRe *regexp.Regexp
+	spreadsheetID   string
 )
 
 func main() {
@@ -86,6 +92,20 @@ func main() {
 				Title: fmt.Sprintf("Work Stats (as of %s)", start.Format("01-02-2006")),
 			},
 		}
+		if *googleSheetsFlag != "new" && *googleSheetsFlag != "" {
+			spreadsheetIDRe, err = regexp.Compile("/spreadsheets/d/(?P<ID>([a-zA-Z0-9-_]+))")
+			if err != nil {
+				log.Fatal(err)
+			}
+			trimmed := strings.TrimPrefix(*googleSheetsFlag, "https://docs.google.com")
+			trimmed = strings.TrimSuffix(trimmed, "edit#gid=0")
+			match := spreadsheetIDRe.FindStringSubmatch(trimmed)
+			for i, name := range spreadsheetIDRe.SubexpNames() {
+				if name == "ID" {
+					spreadsheetID = match[i]
+				}
+			}
+		}
 	}
 
 	// Write out data on the user's activity on the Go project's GitHub issues
@@ -119,7 +139,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	if !*googleSheetsFlag {
+	if *googleSheetsFlag == "" {
 		return
 	}
 	// Create the spreadsheet.
@@ -127,9 +147,51 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	spreadsheet, err := srv.Spreadsheets.Create(spreadsheet).Context(ctx).Do()
-	if err != nil {
-		log.Fatal(err)
+	if *googleSheetsFlag == "new" {
+		spreadsheet, err = srv.Spreadsheets.Create(spreadsheet).Context(ctx).Do()
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		data := make(map[string][]*sheets.RowData)
+		// First, create the new sheets in spreadsheet.
+		var createRequests []*sheets.Request
+		for _, sheet := range spreadsheet.Sheets {
+			data[sheet.Properties.Title] = sheet.Data[0].RowData
+			createRequests = append(createRequests, &sheets.Request{
+				AddSheet: &sheets.AddSheetRequest{
+					Properties: sheet.Properties,
+				},
+			})
+		}
+		response, err := srv.Spreadsheets.BatchUpdate(spreadsheetID, &sheets.BatchUpdateSpreadsheetRequest{
+			IncludeSpreadsheetInResponse: true,
+			Requests:                     createRequests,
+		}).Context(ctx).Do()
+		if err != nil {
+			log.Fatal(err)
+		}
+		spreadsheet = response.UpdatedSpreadsheet
+
+		// Now, add the data to the spreadsheets.
+		var dataRequests []*sheets.Request
+		for _, sheet := range spreadsheet.Sheets {
+			dataRequests = append(dataRequests, &sheets.Request{
+				AppendCells: &sheets.AppendCellsRequest{
+					SheetId: sheet.Properties.SheetId,
+					Rows:    data[sheet.Properties.Title],
+					Fields:  "*",
+				},
+			})
+		}
+		response, err = srv.Spreadsheets.BatchUpdate(spreadsheetID, &sheets.BatchUpdateSpreadsheetRequest{
+			IncludeSpreadsheetInResponse: true,
+			Requests:                     dataRequests,
+		}).Context(ctx).Do()
+		if err != nil {
+			log.Fatal(err)
+		}
+		spreadsheet = response.UpdatedSpreadsheet
 	}
 	// Auto-resize the columns of the spreadsheet to fit.
 	var requests []*sheets.Request
@@ -225,4 +287,65 @@ func write(ctx context.Context, outputDir string, data map[string][][]string) er
 		spreadsheet.Sheets = append(spreadsheet.Sheets, sheet)
 	}
 	return nil
+}
+
+func googleSheetsService(ctx context.Context) (*sheets.Service, error) {
+	// Read the user's credentials file.
+	b, err := ioutil.ReadFile(*credentialsFile)
+	if err != nil {
+		return nil, err
+	}
+	// If modifying these scopes, delete your previously saved token.json.
+	config, err := google.ConfigFromJSON(b, "https://www.googleapis.com/auth/spreadsheets")
+	if err != nil {
+		return nil, err
+	}
+	tok, err := getOauthToken(ctx, config)
+	if err != nil {
+		return nil, err
+	}
+	return sheets.New(config.Client(ctx, tok))
+}
+
+func getOauthToken(ctx context.Context, config *oauth2.Config) (*oauth2.Token, error) {
+	// token.json stores the user's access and refresh tokens, and is created
+	// automatically when the authorization flow completes for the first time.
+	f, err := os.Open(*tokenFile)
+	if err == nil {
+		defer f.Close()
+		tok := &oauth2.Token{}
+		if err := json.NewDecoder(f).Decode(tok); err != nil {
+			return nil, err
+		}
+		return tok, nil
+	}
+	if !os.IsNotExist(err) {
+		return nil, err
+	}
+	// If the token file isn't available, create one.
+	// Request a token from the web, then returns the retrieved token.
+	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+	fmt.Printf("Go to the following link in your browser then type the "+
+		"authorization code: \n%v\n", authURL)
+
+	var authCode string
+	if _, err := fmt.Scan(&authCode); err != nil {
+		return nil, err
+	}
+	tok, err := config.Exchange(ctx, authCode)
+	if err != nil {
+		return nil, err
+	}
+	// Save the token for future use.
+	fmt.Printf("Saving credential file to: %s\n", *tokenFile)
+	f, err = os.OpenFile(*tokenFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	if err := json.NewEncoder(f).Encode(tok); err != nil {
+		return nil, err
+	}
+	return tok, nil
 }
