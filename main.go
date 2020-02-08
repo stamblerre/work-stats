@@ -12,12 +12,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/stamblerre/work-stats/github"
 	"github.com/stamblerre/work-stats/golang"
-	"golang.org/x/build/maintner"
 	"golang.org/x/build/maintner/godata"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -37,12 +35,6 @@ var (
 	googleSheetsFlag = flag.String("sheets", "new", "write or append output to a Google spreadsheet (either \"\", \"new\", or the URL of an existing sheet)")
 	credentialsFile  = flag.String("credentials", "credentials.json", "path to credentials file for Google Sheets")
 	tokenFile        = flag.String("token", "token.json", "path to token file for authentication in Google sheets")
-
-	// Globals.
-	corpus          *maintner.Corpus
-	spreadsheet     *sheets.Spreadsheet
-	spreadsheetIDRe *regexp.Regexp
-	spreadsheetID   string
 )
 
 func main() {
@@ -72,6 +64,29 @@ func main() {
 		start = time.Date(1900, time.January, 1, 0, 0, 0, 0, time.UTC)
 	}
 
+	// Determine if the user has provided a valid Google Sheets URL.
+	var spreadsheetID string
+	if *googleSheetsFlag != "new" && *googleSheetsFlag != "" {
+		// Trim the extra pieces that the URL may contain.
+		trimmed := strings.TrimPrefix(*googleSheetsFlag, "https://docs.google.com")
+		trimmed = strings.TrimSuffix(trimmed, "edit#gid=0")
+
+		// Source: https://developers.google.com/sheets/api/guides/concepts.
+		re, err := regexp.Compile("/spreadsheets/d/(?P<ID>([a-zA-Z0-9-_]+))")
+		if err != nil {
+			log.Fatal(err)
+		}
+		match := re.FindStringSubmatch(trimmed)
+		for i, name := range re.SubexpNames() {
+			if name == "ID" {
+				spreadsheetID = match[i]
+			}
+		}
+		if spreadsheetID == "" {
+			log.Fatalf("Unable to determine spreadsheet ID for %s", *googleSheetsFlag)
+		}
+	}
+
 	// Write output to a temporary directory.
 	dir, err := ioutil.TempDir("", "work-stats")
 	if err != nil {
@@ -79,121 +94,65 @@ func main() {
 	}
 
 	ctx := context.Background()
-
-	// Get the corpus data (very slow on first try, uses cache after).
-	var initOnce sync.Once
-	initCorpus := func() {
-		corpus, err = godata.Get(ctx)
-		if err != nil {
-			log.Fatal(err)
-		}
-		spreadsheet = &sheets.Spreadsheet{
-			Properties: &sheets.SpreadsheetProperties{
-				Title: fmt.Sprintf("Work Stats (as of %s)", start.Format("01-02-2006")),
-			},
-		}
-		if *googleSheetsFlag != "new" && *googleSheetsFlag != "" {
-			spreadsheetIDRe, err = regexp.Compile("/spreadsheets/d/(?P<ID>([a-zA-Z0-9-_]+))")
-			if err != nil {
-				log.Fatal(err)
-			}
-			trimmed := strings.TrimPrefix(*googleSheetsFlag, "https://docs.google.com")
-			trimmed = strings.TrimSuffix(trimmed, "edit#gid=0")
-			match := spreadsheetIDRe.FindStringSubmatch(trimmed)
-			for i, name := range spreadsheetIDRe.SubexpNames() {
-				if name == "ID" {
-					spreadsheetID = match[i]
-				}
-			}
-		}
-	}
+	rowData := make(map[string][]*sheets.RowData)
 
 	// Write out data on the user's activity on the Go project's GitHub issues
 	// and the Go project's Gerrit code reviews.
 	if *gerritFlag {
-		initOnce.Do(initCorpus)
+		// Get the corpus data (very slow on first try, uses cache after).
+		corpus, err := godata.Get(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
 		goIssues, err := golang.Issues(corpus.GitHub(), *username, start)
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := write(ctx, dir, goIssues); err != nil {
+		if err := write(ctx, dir, goIssues, rowData); err != nil {
 			log.Fatal(err)
 		}
 		goCLs, err := golang.Changelists(corpus.Gerrit(), emails, start)
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := write(ctx, dir, goCLs); err != nil {
+		if err := write(ctx, dir, goCLs, rowData); err != nil {
 			log.Fatal(err)
 		}
 	}
 
 	// Write out data on the user's activity on GitHub issues outside of the Go project.
 	if *gitHubFlag {
-		initOnce.Do(initCorpus)
 		githubIssues, err := github.IssuesAndPRs(ctx, *username, start)
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := write(ctx, dir, githubIssues); err != nil {
+		if err := write(ctx, dir, githubIssues, rowData); err != nil {
 			log.Fatal(err)
 		}
 	}
+
+	// Optionally write output to Google Sheets.
 	if *googleSheetsFlag == "" {
 		return
 	}
-	// Create the spreadsheet.
 	srv, err := googleSheetsService(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
+	var spreadsheet *sheets.Spreadsheet
 	if *googleSheetsFlag == "new" {
-		spreadsheet, err = srv.Spreadsheets.Create(spreadsheet).Context(ctx).Do()
+		spreadsheet, err = createSheet(ctx, srv, start, rowData)
 		if err != nil {
 			log.Fatal(err)
 		}
 	} else {
-		data := make(map[string][]*sheets.RowData)
-		// First, create the new sheets in spreadsheet.
-		var createRequests []*sheets.Request
-		for _, sheet := range spreadsheet.Sheets {
-			data[sheet.Properties.Title] = sheet.Data[0].RowData
-			createRequests = append(createRequests, &sheets.Request{
-				AddSheet: &sheets.AddSheetRequest{
-					Properties: sheet.Properties,
-				},
-			})
-		}
-		response, err := srv.Spreadsheets.BatchUpdate(spreadsheetID, &sheets.BatchUpdateSpreadsheetRequest{
-			IncludeSpreadsheetInResponse: true,
-			Requests:                     createRequests,
-		}).Context(ctx).Do()
+		spreadsheet, err = appendToSheet(ctx, srv, spreadsheetID, rowData)
 		if err != nil {
 			log.Fatal(err)
 		}
-		spreadsheet = response.UpdatedSpreadsheet
-
-		// Now, add the data to the spreadsheets.
-		var dataRequests []*sheets.Request
-		for _, sheet := range spreadsheet.Sheets {
-			dataRequests = append(dataRequests, &sheets.Request{
-				AppendCells: &sheets.AppendCellsRequest{
-					SheetId: sheet.Properties.SheetId,
-					Rows:    data[sheet.Properties.Title],
-					Fields:  "*",
-				},
-			})
-		}
-		response, err = srv.Spreadsheets.BatchUpdate(spreadsheetID, &sheets.BatchUpdateSpreadsheetRequest{
-			IncludeSpreadsheetInResponse: true,
-			Requests:                     dataRequests,
-		}).Context(ctx).Do()
-		if err != nil {
-			log.Fatal(err)
-		}
-		spreadsheet = response.UpdatedSpreadsheet
 	}
-	// Auto-resize the columns of the spreadsheet to fit.
+	// Final sheet updates:
+	// - Auto-resize the columns of the spreadsheet to fit.
 	var requests []*sheets.Request
 	for _, sheet := range spreadsheet.Sheets {
 		requests = append(requests, &sheets.Request{
@@ -213,7 +172,7 @@ func main() {
 	fmt.Printf("Wrote data to Google Sheet: %s\n", spreadsheet.SpreadsheetUrl)
 }
 
-func write(ctx context.Context, outputDir string, data map[string][][]string) error {
+func write(ctx context.Context, outputDir string, data map[string][][]string, rowData map[string][]*sheets.RowData) error {
 	// Write output to disk first.
 	var filenames []string
 	for filename, cells := range data {
@@ -238,18 +197,10 @@ func write(ctx context.Context, outputDir string, data map[string][][]string) er
 		fmt.Printf("Wrote output to %s.\n", filename)
 	}
 	// Add a new sheet and write output to it.
-	for filename, cells := range data {
-		sheet := &sheets.Sheet{
-			Properties: &sheets.SheetProperties{
-				Title: filename,
-				GridProperties: &sheets.GridProperties{
-					FrozenRowCount: 1,
-				},
-			},
-		}
-		gd := &sheets.GridData{}
+	for title, cells := range data {
+		var rd []*sheets.RowData
 		for i, row := range cells {
-			rd := &sheets.RowData{}
+			var values []*sheets.CellData
 			for _, cell := range row {
 				var total, subtotal bool
 				if len(row) >= 1 {
@@ -279,12 +230,13 @@ func write(ctx context.Context, outputDir string, data map[string][][]string) er
 						Red:   0.92,
 					}
 				}
-				rd.Values = append(rd.Values, cd)
+				values = append(values, cd)
 			}
-			gd.RowData = append(gd.RowData, rd)
+			rd = append(rd, &sheets.RowData{
+				Values: values,
+			})
 		}
-		sheet.Data = append(sheet.Data, gd)
-		spreadsheet.Sheets = append(spreadsheet.Sheets, sheet)
+		rowData[title] = rd
 	}
 	return nil
 }
@@ -348,4 +300,69 @@ func getOauthToken(ctx context.Context, config *oauth2.Config) (*oauth2.Token, e
 		return nil, err
 	}
 	return tok, nil
+}
+
+func createSheet(ctx context.Context, srv *sheets.Service, start time.Time, rowData map[string][]*sheets.RowData) (*sheets.Spreadsheet, error) {
+	var newSheets []*sheets.Sheet
+	for title, data := range rowData {
+		newSheets = append(newSheets, &sheets.Sheet{
+			Properties: &sheets.SheetProperties{
+				Title: title,
+				GridProperties: &sheets.GridProperties{
+					FrozenRowCount: 1,
+				},
+			},
+			Data: []*sheets.GridData{{RowData: data}},
+		})
+	}
+	spreadsheet := &sheets.Spreadsheet{
+		Properties: &sheets.SpreadsheetProperties{
+			Title: fmt.Sprintf("Work Stats (as of %s)", start.Format("01-02-2006")),
+		},
+		Sheets: newSheets,
+	}
+	return srv.Spreadsheets.Create(spreadsheet).Context(ctx).Do()
+}
+
+func appendToSheet(ctx context.Context, srv *sheets.Service, spreadsheetID string, rowData map[string][]*sheets.RowData) (*sheets.Spreadsheet, error) {
+	// First, create the new sheets in spreadsheet.
+	var createRequests []*sheets.Request
+	for title := range rowData {
+		createRequests = append(createRequests, &sheets.Request{
+			AddSheet: &sheets.AddSheetRequest{
+				Properties: &sheets.SheetProperties{
+					Title: title,
+					GridProperties: &sheets.GridProperties{
+						FrozenRowCount: 1,
+					},
+				},
+			},
+		})
+	}
+	response, err := srv.Spreadsheets.BatchUpdate(spreadsheetID, &sheets.BatchUpdateSpreadsheetRequest{
+		IncludeSpreadsheetInResponse: true,
+		Requests:                     createRequests,
+	}).Context(ctx).Do()
+	if err != nil {
+		return nil, err
+	}
+	// Now, add the data to the spreadsheets.
+	var dataRequests []*sheets.Request
+	for _, sheet := range response.UpdatedSpreadsheet.Sheets {
+		dataRequests = append(dataRequests, &sheets.Request{
+			AppendCells: &sheets.AppendCellsRequest{
+				SheetId: sheet.Properties.SheetId,
+				Rows:    rowData[sheet.Properties.Title],
+				Fields:  "*",
+			},
+		})
+	}
+	response, err = srv.Spreadsheets.BatchUpdate(spreadsheetID, &sheets.BatchUpdateSpreadsheetRequest{
+		IncludeSpreadsheetInResponse: true,
+		Requests:                     dataRequests,
+	}).Context(ctx).Do()
+	if err != nil {
+		return nil, err
+	}
+	return response.UpdatedSpreadsheet, nil
 }
