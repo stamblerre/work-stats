@@ -94,11 +94,11 @@ func IssuesToCells(issues []*Issue) [][]string {
 			}
 		}
 		grandTotal.add(repoTotal)
-		cells = append(cells, append([]string{"Subtotal", repo}, repoTotal.asCells()...))
+		// Only add the subtotal if there are multiple repos.
+		if len(repos) > 1 {
+			cells = append(cells, append([]string{"Subtotal", repo}, repoTotal.asCells()...))
+		}
 	}
-	// Only add the final total if there are multiple repos.
-	if len(repos) > 1 {
-		cells = append(cells, append([]string{"Total", ""}, grandTotal.asCells()...))
-	}
+	cells = append(cells, append([]string{"Total", ""}, grandTotal.asCells()...))
 	return cells
 }

@@ -88,11 +88,11 @@ func ReviewedChangelistsToCells(cls []*Changelist) [][]string {
 			}
 			cells = append(cells, []string{"", author, fmt.Sprint(len(cls))})
 		}
-		cells = append(cells, []string{"Subtotal", repo, fmt.Sprint(len(repos[repo]))})
+		if len(repos) > 1 {
+			cells = append(cells, []string{"Subtotal", repo, fmt.Sprint(len(repos[repo]))})
+		}
 	}
-	if len(repos) > 1 {
-		cells = append(cells, []string{"Total", "", fmt.Sprint(len(cls))})
-	}
+	cells = append(cells, []string{"Total", "", fmt.Sprint(len(cls))})
 	return cells
 }
 
