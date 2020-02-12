@@ -15,7 +15,6 @@ import (
 
 // Get some statistics on issues opened, closed, and commented on.
 func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map[string][][]string, error) {
-	var authored, reviewed []*generic.Changelist
 	emailset := make(map[string]bool)
 	for _, e := range emails {
 		emailset[e] = true
@@ -25,6 +24,8 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 		id      int
 	}
 	ownerIDs := make(map[ownerKey]bool)
+	authored := make(map[*generic.Changelist]bool)
+	reviewed := make(map[*generic.Changelist]bool)
 	if err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
 		// First, collect all CLs authored by the user.
 		project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
@@ -34,13 +35,13 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 				}
 				if cl.Status == "merged" {
 					if cl.Created.After(start) {
-						gcl := &generic.Changelist{
-							Link:        fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number),
+						authored[&generic.Changelist{
+							Link:        link(cl),
 							Author:      cl.Owner().Email(),
 							Description: cl.Subject(),
 							Repo:        project.Project(),
-						}
-						authored = append(authored, gcl)
+							Category:    extractCategory(cl.Subject()),
+						}] = true
 					}
 				}
 			}
@@ -66,13 +67,13 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 				// Not sure why this happens for some people, but not others.
 				if msg.Author != nil && emailset[msg.Author.Email()] {
 					if msg.Date.After(start) {
-						gcl := &generic.Changelist{
-							Link:        fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number),
+						reviewed[&generic.Changelist{
+							Link:        link(cl),
 							Author:      cl.Owner().Email(),
 							Description: cl.Subject(),
 							Repo:        project.Project(),
-						}
-						reviewed = append(reviewed, gcl)
+							Category:    extractCategory(cl.Subject()),
+						}] = true
 						return nil
 					}
 				}
@@ -85,13 +86,13 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 						}
 						if ownerIDs[ownerKey{project, int(id)}] {
 							if msg.Date.After(start) {
-								gcl := &generic.Changelist{
-									Link:        fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number),
+								reviewed[&generic.Changelist{
+									Link:        link(cl),
 									Author:      cl.Owner().Email(),
 									Description: cl.Subject(),
 									Repo:        project.Project(),
-								}
-								reviewed = append(reviewed, gcl)
+									Category:    extractCategory(cl.Subject()),
+								}] = true
 								return nil
 							}
 						}
@@ -104,8 +105,19 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 		return nil, err
 	}
 
+	var authoredCLs, reviewedCLs []*generic.Changelist
+	for cl := range authored {
+		authoredCLs = append(authoredCLs, cl)
+	}
+	for cl := range reviewed {
+		reviewedCLs = append(reviewedCLs, cl)
+	}
 	return map[string][][]string{
-		"golang-authored": generic.AuthoredChangelistsToCells(authored),
-		"golang-reviewed": generic.AuthoredChangelistsToCells(reviewed),
+		"golang-authored": generic.AuthoredChangelistsToCells(authoredCLs),
+		"golang-reviewed": generic.ReviewedChangelistsToCells(reviewedCLs),
 	}, nil
+}
+
+func link(cl *maintner.GerritCL) string {
+	return fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number)
 }

@@ -24,8 +24,9 @@ func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[st
 	tc := oauth2.NewClient(ctx, ts)
 	client := github.NewClient(tc)
 
-	var issues []*generic.Issue
-	var authoredPRs, reviewedPRs []*generic.Changelist
+	issues := make(map[*generic.Issue]bool)
+	authored := make(map[*generic.Changelist]bool)
+	reviewed := make(map[*generic.Changelist]bool)
 
 	var current, total int
 	for i := 0; ; i++ {
@@ -56,9 +57,9 @@ func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[st
 					Author:      issue.GetUser().GetLogin(),
 				}
 				if opened {
-					authoredPRs = append(authoredPRs, gc)
+					authored[gc] = true
 				} else {
-					reviewedPRs = append(reviewedPRs, gc)
+					reviewed[gc] = true
 				}
 				continue
 			}
@@ -93,14 +94,14 @@ func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[st
 				}
 				numComments++
 			}
-			issues = append(issues, &generic.Issue{
+			issues[&generic.Issue{
 				Repo:     fmt.Sprintf("%s/%s", org, repo),
 				Title:    issue.GetTitle(),
 				Link:     issue.GetHTMLURL(),
 				Opened:   opened,
 				Closed:   closed,
 				Comments: numComments,
-			})
+			}] = true
 		}
 		total = result.GetTotal()
 		current += len(result.Issues)
@@ -109,8 +110,19 @@ func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[st
 		}
 	}
 
+	var genericIssues []*generic.Issue
+	for i := range issues {
+		genericIssues = append(genericIssues, i)
+	}
+	var authoredPRs, reviewedPRs []*generic.Changelist
+	for pr := range authored {
+		authoredPRs = append(authoredPRs, pr)
+	}
+	for pr := range reviewed {
+		reviewedPRs = append(reviewedPRs, pr)
+	}
 	return map[string][][]string{
-		"github-issues":       generic.IssuesToCells(issues),
+		"github-issues":       generic.IssuesToCells(genericIssues),
 		"github-prs-authored": generic.AuthoredChangelistsToCells(authoredPRs),
 		"github-prs-reviewed": generic.ReviewedChangelistsToCells(reviewedPRs),
 	}, nil

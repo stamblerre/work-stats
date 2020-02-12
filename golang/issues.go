@@ -2,6 +2,7 @@ package golang
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/stamblerre/work-stats/generic"
@@ -18,9 +19,10 @@ func Issues(github *maintner.GitHub, username string, start time.Time) (map[stri
 				if _, ok := stats[issue]; !ok {
 					r := fmt.Sprintf("%s/%s", repo.ID().Owner, repo.ID().Repo)
 					stats[issue] = &generic.Issue{
-						Title: issue.Title,
-						Repo:  r,
-						Link:  fmt.Sprintf("github.com/%s/issues/%v", r, issue.Number),
+						Title:    issue.Title,
+						Repo:     r,
+						Link:     fmt.Sprintf("github.com/%s/issues/%v", r, issue.Number),
+						Category: extractCategory(issue.Title),
 					}
 				}
 			}
@@ -64,4 +66,14 @@ func Issues(github *maintner.GitHub, username string, start time.Time) (map[stri
 	return map[string][][]string{
 		"golang-issues": generic.IssuesToCells(issues),
 	}, nil
+}
+
+func extractCategory(description string) string {
+	split := strings.Split(description, ":")
+	if len(split) > 1 {
+		if !strings.Contains(split[0], " ") {
+			return split[0]
+		}
+	}
+	return ""
 }

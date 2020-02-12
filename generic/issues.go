@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
-	"strings"
 )
 
 type Issue struct {
@@ -14,8 +13,7 @@ type Issue struct {
 	Title          string
 	Opened, Closed bool
 	Comments       int
-
-	category string
+	Category       string
 }
 
 type issueTotal struct {
@@ -43,7 +41,6 @@ func IssuesToCells(issues []*Issue) [][]string {
 	repos := make(map[string][]*Issue)
 	for _, issue := range issues {
 		repos[issue.Repo] = append(repos[issue.Repo], issue)
-		issue.category = extractCategory(issue.Repo, issue.Title)
 	}
 	var sortedRepos []string
 	for repo := range repos {
@@ -51,13 +48,13 @@ func IssuesToCells(issues []*Issue) [][]string {
 	}
 	sort.Strings(sortedRepos)
 
-	cells := append([][]string{}, []string{"Issue Number", "Description", "Opened", "Closed", "Number of Comments"})
+	cells := append([][]string{}, []string{"Issue Number", "Description", "Opened", "Closed", "Number of Comments", "Total Issues"})
 	grandTotal := &issueTotal{}
 	for _, repo := range sortedRepos {
 		repoTotal := &issueTotal{}
 		categories := make(map[string][]*Issue)
 		for _, issue := range repos[repo] {
-			categories[issue.category] = append(categories[issue.category], issue)
+			categories[issue.Category] = append(categories[issue.Category], issue)
 		}
 		var sortedCategories []string
 		for category := range categories {
@@ -83,7 +80,7 @@ func IssuesToCells(issues []*Issue) [][]string {
 				categoryTotal.comments += issue.Comments
 				cells = append(cells, []string{
 					issue.Link,
-					issue.Title,
+					truncate(issue.Title),
 					strconv.FormatBool(issue.Opened),
 					strconv.FormatBool(issue.Closed),
 					strconv.FormatInt(int64(issue.Comments), 10),
@@ -93,7 +90,7 @@ func IssuesToCells(issues []*Issue) [][]string {
 
 			// Only add subtotals for categories only if they are legitimate.
 			if len(sortedCategories) > 1 {
-				cells = append(cells, append([]string{"Subtotal", ""}, categoryTotal.asCells()...))
+				cells = append(cells, append([]string{"", category}, categoryTotal.asCells()...))
 			}
 		}
 		grandTotal.add(repoTotal)
@@ -101,18 +98,7 @@ func IssuesToCells(issues []*Issue) [][]string {
 	}
 	// Only add the final total if there are multiple repos.
 	if len(repos) > 1 {
-		cells = append(cells, append([]string{"Total"}, grandTotal.asCells()...))
+		cells = append(cells, append([]string{"Total", ""}, grandTotal.asCells()...))
 	}
 	return cells
-}
-
-func extractCategory(repo, description string) string {
-	if !strings.HasPrefix(repo, "golang") {
-		return ""
-	}
-	split := strings.Split(description, ":")
-	if len(split) > 1 {
-		return split[0]
-	}
-	return ""
 }

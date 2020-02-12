@@ -10,15 +10,13 @@ type Changelist struct {
 	Description string
 	Author      string
 	Repo        string
-
-	category string
+	Category    string
 }
 
 func AuthoredChangelistsToCells(cls []*Changelist) [][]string {
 	repos := make(map[string][]*Changelist)
 	for _, cl := range cls {
 		repos[cl.Repo] = append(repos[cl.Repo], cl)
-		cl.category = extractCategory(cl.Repo, cl.Description)
 	}
 	var sortedRepos []string
 	for repo := range repos {
@@ -31,7 +29,7 @@ func AuthoredChangelistsToCells(cls []*Changelist) [][]string {
 		cls := repos[repo]
 		categories := make(map[string][]*Changelist)
 		for _, cl := range cls {
-			categories[cl.category] = append(categories[cl.category], cl)
+			categories[cl.Category] = append(categories[cl.Category], cl)
 		}
 		var sortedCategories []string
 		for category := range categories {
@@ -44,11 +42,11 @@ func AuthoredChangelistsToCells(cls []*Changelist) [][]string {
 				return cls[i].Link < cls[j].Link
 			})
 			for _, cl := range cls {
-				cells = append(cells, []string{cl.Link, cl.Description})
+				cells = append(cells, []string{cl.Link, truncate(cl.Description)})
 			}
 			// Only add subtotals for categories only if they are legitimate.
 			if len(sortedCategories) > 1 {
-				cells = append(cells, []string{"Subtotal", "", fmt.Sprint(len(cls))})
+				cells = append(cells, []string{"", category, fmt.Sprint(len(cls))})
 			}
 		}
 		cells = append(cells, []string{"Subtotal", repo, fmt.Sprint(len(repos[repo]))})
@@ -71,7 +69,7 @@ func ReviewedChangelistsToCells(cls []*Changelist) [][]string {
 	cells := [][]string{{"CL", "Description"}}
 	for _, repo := range sortedRepos {
 		authors := make(map[string][]*Changelist)
-		for _, cl := range cls {
+		for _, cl := range repos[repo] {
 			authors[cl.Author] = append(authors[cl.Author], cl)
 		}
 		var sortedAuthors []string
@@ -86,9 +84,9 @@ func ReviewedChangelistsToCells(cls []*Changelist) [][]string {
 				return cls[i].Link < cls[j].Link
 			})
 			for _, cl := range cls {
-				cells = append(cells, []string{cl.Link, cl.Description})
+				cells = append(cells, []string{cl.Link, truncate(cl.Description)})
 			}
-			cells = append(cells, []string{"Subtotal", author, fmt.Sprint(len(cls))})
+			cells = append(cells, []string{"", author, fmt.Sprint(len(cls))})
 		}
 		cells = append(cells, []string{"Subtotal", repo, fmt.Sprint(len(repos[repo]))})
 	}
@@ -96,4 +94,11 @@ func ReviewedChangelistsToCells(cls []*Changelist) [][]string {
 		cells = append(cells, []string{"Total", "", fmt.Sprint(len(cls))})
 	}
 	return cells
+}
+
+func truncate(x string) string {
+	if len(x) > 80 {
+		return x[:80]
+	}
+	return x
 }
