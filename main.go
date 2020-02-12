@@ -202,10 +202,11 @@ func write(ctx context.Context, outputDir string, data map[string][][]string, ro
 		for i, row := range cells {
 			var values []*sheets.CellData
 			for _, cell := range row {
-				var total, subtotal bool
+				var total, subtotal, subsubtotal bool
 				if len(row) >= 1 {
 					total = row[0] == "Total"
 					subtotal = row[0] == "Subtotal"
+					subsubtotal = row[0] == ""
 				}
 				cd := &sheets.CellData{
 					UserEnteredValue: &sheets.ExtendedValue{
@@ -213,21 +214,27 @@ func write(ctx context.Context, outputDir string, data map[string][][]string, ro
 					},
 					UserEnteredFormat: &sheets.CellFormat{
 						TextFormat: &sheets.TextFormat{
-							Bold: i == 0 || total || subtotal,
+							Bold: i == 0 || total || subtotal || subsubtotal,
 						},
 					},
 				}
-				if subtotal {
+				if subsubtotal {
 					cd.UserEnteredFormat.BackgroundColor = &sheets.Color{
-						Blue:  0.96,
-						Green: 0.96,
-						Red:   0.96,
+						Blue:  0.97,
+						Green: 0.97,
+						Red:   0.97,
+					}
+				} else if subtotal {
+					cd.UserEnteredFormat.BackgroundColor = &sheets.Color{
+						Blue:  0.94,
+						Green: 0.94,
+						Red:   0.94,
 					}
 				} else if total {
 					cd.UserEnteredFormat.BackgroundColor = &sheets.Color{
-						Blue:  0.92,
-						Green: 0.92,
-						Red:   0.92,
+						Blue:  0.91,
+						Green: 0.91,
+						Red:   0.91,
 					}
 				}
 				values = append(values, cd)
