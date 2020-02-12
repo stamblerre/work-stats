@@ -1,25 +1,17 @@
+// Package github reports data on GitHub PRs and issues.
 package github
 
 import (
 	"context"
 	"fmt"
 	"os"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/go-github/v28/github"
+	"github.com/stamblerre/work-stats/generic"
 	"golang.org/x/oauth2"
 )
-
-type issueData struct {
-	org, repo      string
-	number         int
-	opened, closed bool
-	comments       int
-	isPR           bool
-}
 
 func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[string][][]string, error) {
 	token := os.Getenv("GITHUB_TOKEN")
@@ -32,9 +24,9 @@ func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[st
 	tc := oauth2.NewClient(ctx, ts)
 	client := github.NewClient(tc)
 
-	stats := make(map[string]*issueData)
+	var issues []*generic.Issue
+	var authoredPRs, reviewedPRs []*generic.Changelist
 
-	// Get all non-golang/go issues.
 	var current, total int
 	for i := 0; ; i++ {
 		result, _, err := client.Search.Issues(ctx, fmt.Sprintf("involves:%v updated:>=%v", username, since.Format("2006-01-02")), &github.SearchOptions{
@@ -50,18 +42,65 @@ func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[st
 			trimmed := strings.TrimPrefix(issue.GetRepositoryURL(), "https://api.github.com/repos/")
 			split := strings.SplitN(trimmed, "/", 2)
 			org, repo := split[0], split[1]
-			// golang/go issues are tracker via the golang package.
-			if org == "golang" && repo == "go" {
+			// golang issues are tracker via the golang package.
+			if org == "golang" {
 				continue
 			}
-			stats[issue.GetHTMLURL()] = &issueData{
-				org:    org,
-				repo:   repo,
-				number: issue.GetNumber(),
-				// Only mark issues as opened if the user opened them since the specified date.
-				opened: issue.GetUser().GetLogin() == username && issue.GetCreatedAt().After(since),
-				isPR:   issue.IsPullRequest(),
+			// Only mark issues as opened if the user opened them since the specified date.
+			opened := issue.GetUser().GetLogin() == username && issue.GetCreatedAt().After(since)
+			if issue.IsPullRequest() {
+				gc := &generic.Changelist{
+					Repo:        fmt.Sprintf("%s/%s", org, repo),
+					Description: issue.GetTitle(),
+					Link:        issue.GetHTMLURL(),
+					Author:      issue.GetUser().GetLogin(),
+				}
+				if opened {
+					authoredPRs = append(authoredPRs, gc)
+				} else {
+					reviewedPRs = append(reviewedPRs, gc)
+				}
+				continue
 			}
+			events, _, err := client.Issues.ListIssueEvents(ctx, org, repo, issue.GetNumber(), nil)
+			if err != nil {
+				return nil, err
+			}
+			var closed bool
+			for _, e := range events {
+				if e.GetActor().GetLogin() != username {
+					continue
+				}
+				if e.GetCreatedAt().Before(since) {
+					continue
+				}
+				switch e.GetEvent() {
+				case "closed":
+					closed = true
+				}
+			}
+			comments, _, err := client.Issues.ListComments(ctx, org, repo, issue.GetNumber(), nil)
+			if err != nil {
+				return nil, err
+			}
+			var numComments int
+			for _, c := range comments {
+				if c.GetUser().GetLogin() != username {
+					continue
+				}
+				if c.GetCreatedAt().Before(since) {
+					continue
+				}
+				numComments++
+			}
+			issues = append(issues, &generic.Issue{
+				Repo:     fmt.Sprintf("%s/%s", org, repo),
+				Title:    issue.GetTitle(),
+				Link:     issue.GetHTMLURL(),
+				Opened:   opened,
+				Closed:   closed,
+				Comments: numComments,
+			})
 		}
 		total = result.GetTotal()
 		current += len(result.Issues)
@@ -69,139 +108,10 @@ func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[st
 			break
 		}
 	}
-	for _, issue := range stats {
-		events, _, err := client.Issues.ListIssueEvents(ctx, issue.org, issue.repo, issue.number, nil)
-		if err != nil {
-			return nil, err
-		}
-		for _, e := range events {
-			if e.GetActor().GetLogin() != username {
-				continue
-			}
-			if e.GetCreatedAt().Before(since) {
-				continue
-			}
-			switch e.GetEvent() {
-			case "closed":
-				issue.closed = true
-			}
-		}
-		comments, _, err := client.Issues.ListComments(ctx, issue.org, issue.repo, issue.number, nil)
-		if err != nil {
-			return nil, err
-		}
-		for _, c := range comments {
-			if c.GetUser().GetLogin() != username {
-				continue
-			}
-			if c.GetCreatedAt().Before(since) {
-				continue
-			}
-			issue.comments++
-		}
-	}
 
-	var issuesCells [][]string
-	{
-		sorted := make([]string, 0, len(stats))
-		for url, data := range stats {
-			if data.isPR {
-				continue
-			}
-			sorted = append(sorted, url)
-		}
-		sort.Strings(sorted)
-		issuesCells = append(issuesCells, []string{"Issue", "Opened", "Closed", "Number of Comments"})
-		var opened, closed, comments int
-		for _, url := range sorted {
-			data := stats[url]
-			if data.opened {
-				opened++
-			}
-			if data.closed {
-				closed++
-			}
-			comments += data.comments
-			issuesCells = append(issuesCells, []string{
-				url,
-				strconv.FormatBool(data.opened),
-				strconv.FormatBool(data.closed),
-				fmt.Sprintf("%v", data.comments),
-			})
-		}
-		issuesCells = append(issuesCells, []string{
-			fmt.Sprintf("%v", len(stats)),
-			fmt.Sprintf("%v", opened),
-			fmt.Sprintf("%v", closed),
-			fmt.Sprintf("%v", comments),
-		})
-	}
-
-	sortedPRs := make([]string, 0, len(stats))
-	for url, data := range stats {
-		if !data.isPR {
-			continue
-		}
-		sortedPRs = append(sortedPRs, url)
-	}
-	sort.Strings(sortedPRs)
-
-	var authoredCells [][]string
-	{
-		authoredCells = append(authoredCells, []string{"Repo", "URL"})
-		var total int
-		for _, url := range sortedPRs {
-			data := stats[url]
-			// Skip any CLs reviewed.
-			if !data.opened {
-				continue
-			}
-			total++
-			authoredCells = append(authoredCells, []string{
-				fmt.Sprintf("%v/%v", data.org, data.repo),
-				url,
-			})
-		}
-		authoredCells = append(authoredCells, []string{
-			"Total",
-			fmt.Sprintf("%v", total),
-		})
-	}
-
-	var reviewedCells [][]string
-	{
-		reviewedCells = append(reviewedCells, []string{"Repo", "URL", "Closed", "Number of comments"})
-		var total, closed, comments int
-		for _, url := range sortedPRs {
-			data := stats[url]
-			// SKip any CLs authored.
-			if data.opened {
-				continue
-			}
-			if data.closed {
-				closed++
-			}
-			comments += data.comments
-			total++
-			reviewedCells = append(reviewedCells, []string{
-				fmt.Sprintf("%v/%v", data.org, data.repo),
-				url,
-				strconv.FormatBool(data.closed),
-				fmt.Sprintf("%v", data.comments),
-			})
-		}
-		reviewedCells = append(reviewedCells, []string{
-			"Total",
-			fmt.Sprintf("%v", total),
-			fmt.Sprintf("%v", closed),
-			fmt.Sprintf("%v", comments),
-		})
-	}
-
-	// TODO(rstambler): Add per-repo totals.
 	return map[string][][]string{
-		"github-issues":       issuesCells,
-		"github-prs-authored": authoredCells,
-		"github-prs-reviewed": reviewedCells,
+		"github-issues":       generic.IssuesToCells(issues),
+		"github-prs-authored": generic.AuthoredChangelistsToCells(authoredPRs),
+		"github-prs-reviewed": generic.ReviewedChangelistsToCells(reviewedPRs),
 	}, nil
 }
