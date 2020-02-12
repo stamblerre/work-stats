@@ -32,9 +32,9 @@ var (
 	gitHubFlag = flag.Bool("github", true, "collect data on GitHub issues")
 
 	// Flags relating to Google sheets exporter.
-	googleSheetsFlag = flag.String("sheets", "new", "write or append output to a Google spreadsheet (either \"\", \"new\", or the URL of an existing sheet)")
-	credentialsFile  = flag.String("credentials", "credentials.json", "path to credentials file for Google Sheets")
-	tokenFile        = flag.String("token", "token.json", "path to token file for authentication in Google sheets")
+	googleSheetsFlag = flag.String("sheets", "", "write or append output to a Google spreadsheet (either \"\", \"new\", or the URL of an existing sheet)")
+	credentialsFile  = flag.String("credentials", "", "path to credentials file for Google Sheets")
+	tokenFile        = flag.String("token", "", "path to token file for authentication in Google sheets")
 )
 
 func main() {
@@ -65,26 +65,9 @@ func main() {
 	}
 
 	// Determine if the user has provided a valid Google Sheets URL.
-	var spreadsheetID string
-	if *googleSheetsFlag != "new" && *googleSheetsFlag != "" {
-		// Trim the extra pieces that the URL may contain.
-		trimmed := strings.TrimPrefix(*googleSheetsFlag, "https://docs.google.com")
-		trimmed = strings.TrimSuffix(trimmed, "edit#gid=0")
-
-		// Source: https://developers.google.com/sheets/api/guides/concepts.
-		re, err := regexp.Compile("/spreadsheets/d/(?P<ID>([a-zA-Z0-9-_]+))")
-		if err != nil {
-			log.Fatal(err)
-		}
-		match := re.FindStringSubmatch(trimmed)
-		for i, name := range re.SubexpNames() {
-			if name == "ID" {
-				spreadsheetID = match[i]
-			}
-		}
-		if spreadsheetID == "" {
-			log.Fatalf("Unable to determine spreadsheet ID for %s", *googleSheetsFlag)
-		}
+	spreadsheetID, err := getSpreadsheetID()
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	// Write output to a temporary directory.
@@ -135,6 +118,15 @@ func main() {
 	if *googleSheetsFlag == "" {
 		return
 	}
+
+	if *tokenFile == "" {
+		log.Fatal("please provide -token when using -sheets")
+	}
+
+	if *credentialsFile == "" {
+		log.Fatal("please provide -credentials when using -sheets")
+	}
+
 	srv, err := googleSheetsService(ctx)
 	if err != nil {
 		log.Fatal(err)
@@ -169,7 +161,7 @@ func main() {
 	}).Context(ctx).Do(); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("Wrote data to Google Sheet: %s\n", spreadsheet.SpreadsheetUrl)
+	log.Printf("Wrote data to Google Sheet: %s\n", spreadsheet.SpreadsheetUrl)
 }
 
 func write(ctx context.Context, outputDir string, data map[string][][]string, rowData map[string][]*sheets.RowData) error {
@@ -194,7 +186,7 @@ func write(ctx context.Context, outputDir string, data map[string][][]string, ro
 		filenames = append(filenames, fullpath)
 	}
 	for _, filename := range filenames {
-		fmt.Printf("Wrote output to %s.\n", filename)
+		log.Printf("Wrote output to %s.\n", filename)
 	}
 	// Add a new sheet and write output to it.
 	for title, cells := range data {
@@ -277,7 +269,7 @@ func getOauthToken(ctx context.Context, config *oauth2.Config) (*oauth2.Token, e
 	// If the token file isn't available, create one.
 	// Request a token from the web, then returns the retrieved token.
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	fmt.Printf("Go to the following link in your browser then type the "+
+	log.Printf("Go to the following link in your browser then type the "+
 		"authorization code: \n%v\n", authURL)
 
 	var authCode string
@@ -289,7 +281,7 @@ func getOauthToken(ctx context.Context, config *oauth2.Config) (*oauth2.Token, e
 		return nil, err
 	}
 	// Save the token for future use.
-	fmt.Printf("Saving credential file to: %s\n", *tokenFile)
+	log.Printf("Saving credential file to: %s\n", *tokenFile)
 	f, err = os.OpenFile(*tokenFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return nil, err
@@ -365,4 +357,32 @@ func appendToSheet(ctx context.Context, srv *sheets.Service, spreadsheetID strin
 		return nil, err
 	}
 	return response.UpdatedSpreadsheet, nil
+}
+
+// Return the Google Sheets spreadsheet ID. If the googleSheetsFlag is an
+// invalid format, an error will be returned. If the googleSheetsFlag is empty
+// or "new", an empty ID will be returned.
+func getSpreadsheetID() (string, error) {
+	if *googleSheetsFlag == "new" || *googleSheetsFlag == "" {
+		return "", nil
+	}
+
+	var spreadsheetID string
+	// Trim the extra pieces that the URL may contain.
+	trimmed := strings.TrimPrefix(*googleSheetsFlag, "https://docs.google.com")
+	trimmed = strings.TrimSuffix(trimmed, "edit#gid=0")
+
+	// Source: https://developers.google.com/sheets/api/guides/concepts.
+	re, err := regexp.Compile("/spreadsheets/d/(?P<ID>([a-zA-Z0-9-_]+))")
+	if err != nil {
+		return "", err
+	}
+	match := re.FindStringSubmatch(trimmed)
+	for i, name := range re.SubexpNames() {
+		if name == "ID" {
+			spreadsheetID = match[i]
+		}
+	}
+
+	return spreadsheetID, nil
 }
