@@ -70,10 +70,11 @@ token to be created through the  `-token` flag.
 The command will then be:
 
 ```shell
+$ export GITHUB_TOKEN=<your token>
 $ work-stats --username=bob \
     --email=bob@gmail.com,bob@golang.org \
     --since=2019-01-01 \
-    --sheets=true \
+    --sheets=new \
     --credentials=/path/to/credentials.json \
     --token=/path/to/token.json
 ```
