@@ -30,19 +30,21 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 		// First, collect all CLs authored by the user.
 		project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
 			if cl.Owner() != nil && emailset[cl.Owner().Email()] {
+				if cl.Status != "merged" {
+					return nil
+				}
+				// TODO(rstambler): Owner IDs change between branches. Support non-master branches.
 				if cl.Branch() == "master" && cl.OwnerID() != -1 {
 					ownerIDs[ownerKey{project, cl.OwnerID()}] = true
 				}
-				if cl.Status == "merged" {
-					if cl.Created.After(start) {
-						authored[&generic.Changelist{
-							Link:        link(cl),
-							Author:      cl.Owner().Email(),
-							Description: cl.Subject(),
-							Repo:        project.Project(),
-							Category:    extractCategory(cl.Subject()),
-						}] = true
-					}
+				if cl.Created.After(start) {
+					authored[&generic.Changelist{
+						Link:        link(cl),
+						Author:      cl.Owner().Email(),
+						Description: cl.Subject(),
+						Repo:        project.Project(),
+						Category:    extractCategory(cl.Subject()),
+					}] = true
 				}
 			}
 			return nil
@@ -63,19 +65,20 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 			}
 			// If the user reviewed the CL.
 			for _, msg := range cl.Messages {
+				if msg.Date.Before(start) {
+					continue
+				}
 				// If the user's email is actually tracked.
 				// Not sure why this happens for some people, but not others.
 				if msg.Author != nil && emailset[msg.Author.Email()] {
-					if msg.Date.After(start) {
-						reviewed[&generic.Changelist{
-							Link:        link(cl),
-							Author:      cl.Owner().Email(),
-							Description: cl.Subject(),
-							Repo:        project.Project(),
-							Category:    extractCategory(cl.Subject()),
-						}] = true
-						return nil
-					}
+					reviewed[&generic.Changelist{
+						Link:        link(cl),
+						Author:      cl.Owner().Email(),
+						Description: cl.Subject(),
+						Repo:        project.Project(),
+						Category:    extractCategory(cl.Subject()),
+					}] = true
+					return nil
 				}
 				if strings.HasPrefix(msg.Author.Name(), "Gerrit User") {
 					split := strings.Split(msg.Author.Name(), " ")
@@ -85,16 +88,14 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 							log.Fatal(err)
 						}
 						if ownerIDs[ownerKey{project, int(id)}] {
-							if msg.Date.After(start) {
-								reviewed[&generic.Changelist{
-									Link:        link(cl),
-									Author:      cl.Owner().Email(),
-									Description: cl.Subject(),
-									Repo:        project.Project(),
-									Category:    extractCategory(cl.Subject()),
-								}] = true
-								return nil
-							}
+							reviewed[&generic.Changelist{
+								Link:        link(cl),
+								Author:      cl.Owner().Email(),
+								Description: cl.Subject(),
+								Repo:        project.Project(),
+								Category:    extractCategory(cl.Subject()),
+							}] = true
+							return nil
 						}
 					}
 				}
