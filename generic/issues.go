@@ -22,10 +22,10 @@ type issueTotal struct {
 
 func (t1 *issueTotal) asCells() []string {
 	return []string{
-		fmt.Sprint(t1.issues),
 		fmt.Sprint(t1.opened),
 		fmt.Sprint(t1.closed),
 		fmt.Sprint(t1.comments),
+		fmt.Sprint(t1.issues),
 	}
 }
 
@@ -51,7 +51,6 @@ func IssuesToCells(issues []*Issue) [][]string {
 	cells := append([][]string{}, []string{"Issue Number", "Description", "Opened", "Closed", "Number of Comments", "Total Issues"})
 	grandTotal := &issueTotal{}
 	for _, repo := range sortedRepos {
-		repoTotal := &issueTotal{}
 		categories := make(map[string][]*Issue)
 		for _, issue := range repos[repo] {
 			categories[issue.Category] = append(categories[issue.Category], issue)
@@ -62,6 +61,7 @@ func IssuesToCells(issues []*Issue) [][]string {
 		}
 		sort.Strings(sortedCategories)
 
+		repoTotal := &issueTotal{}
 		for _, category := range sortedCategories {
 			issues := categories[category]
 			sort.Slice(issues, func(i, j int) bool {
@@ -86,18 +86,16 @@ func IssuesToCells(issues []*Issue) [][]string {
 					strconv.FormatInt(int64(issue.Comments), 10),
 				})
 			}
-			repoTotal.add(categoryTotal)
-
-			// Only add subtotals for categories only if they are legitimate.
 			if len(sortedCategories) > 1 {
 				cells = append(cells, append([]string{"", category}, categoryTotal.asCells()...))
 			}
+			repoTotal.add(categoryTotal)
 		}
-		grandTotal.add(repoTotal)
 		// Only add the subtotal if there are multiple repos.
 		if len(repos) > 1 {
 			cells = append(cells, append([]string{"Subtotal", repo}, repoTotal.asCells()...))
 		}
+		grandTotal.add(repoTotal)
 	}
 	cells = append(cells, append([]string{"Total", ""}, grandTotal.asCells()...))
 	return cells
