@@ -68,37 +68,34 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 				if msg.Date.Before(start) {
 					continue
 				}
-				// If the user's email is actually tracked.
-				// Not sure why this happens for some people, but not others.
-				if msg.Author != nil && emailset[msg.Author.Email()] {
-					reviewed[&generic.Changelist{
-						Link:        link(cl),
-						Author:      cl.Owner().Email(),
-						Description: cl.Subject(),
-						Repo:        project.Project(),
-						Category:    extractCategory(cl.Subject()),
-					}] = true
-					return nil
+				if msg.Author == nil {
+					continue
 				}
+				// If the user's email is not actually tracked.
+				// Not sure why this happens for some people, but not others.
 				if strings.HasPrefix(msg.Author.Name(), "Gerrit User") {
 					split := strings.Split(msg.Author.Name(), " ")
-					if len(split) == 3 {
-						id, err := strconv.ParseInt(split[2], 10, 64)
-						if err != nil {
-							log.Fatal(err)
-						}
-						if ownerIDs[ownerKey{project, int(id)}] {
-							reviewed[&generic.Changelist{
-								Link:        link(cl),
-								Author:      cl.Owner().Email(),
-								Description: cl.Subject(),
-								Repo:        project.Project(),
-								Category:    extractCategory(cl.Subject()),
-							}] = true
-							return nil
-						}
+					if len(split) != 3 {
+						continue
 					}
+					id, err := strconv.ParseInt(split[2], 10, 64)
+					if err != nil {
+						log.Fatal(err)
+					}
+					if !ownerIDs[ownerKey{project, int(id)}] {
+						continue
+					}
+				} else if !emailset[msg.Author.Email()] {
+					continue
 				}
+				reviewed[&generic.Changelist{
+					Link:        link(cl),
+					Author:      cl.Owner().Email(),
+					Description: cl.Subject(),
+					Repo:        project.Project(),
+					Category:    extractCategory(cl.Subject()),
+				}] = true
+				return nil
 			}
 			return nil
 		})
