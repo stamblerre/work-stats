@@ -24,9 +24,9 @@ func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[st
 	tc := oauth2.NewClient(ctx, ts)
 	client := github.NewClient(tc)
 
-	issues := make(map[*generic.Issue]bool)
-	authored := make(map[*generic.Changelist]bool)
-	reviewed := make(map[*generic.Changelist]bool)
+	issues := make(map[string]*generic.Issue)
+	authored := make(map[string]*generic.Changelist)
+	reviewed := make(map[string]*generic.Changelist)
 
 	var current, total int
 	for i := 0; ; i++ {
@@ -57,9 +57,9 @@ func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[st
 					Author:      issue.GetUser().GetLogin(),
 				}
 				if opened {
-					authored[gc] = true
+					authored[issue.GetHTMLURL()] = gc
 				} else {
-					reviewed[gc] = true
+					reviewed[issue.GetHTMLURL()] = gc
 				}
 				continue
 			}
@@ -94,14 +94,14 @@ func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[st
 				}
 				numComments++
 			}
-			issues[&generic.Issue{
+			issues[issue.GetHTMLURL()] = &generic.Issue{
 				Repo:     fmt.Sprintf("%s/%s", org, repo),
 				Title:    issue.GetTitle(),
 				Link:     issue.GetHTMLURL(),
 				Opened:   opened,
 				Closed:   closed,
 				Comments: numComments,
-			}] = true
+			}
 		}
 		total = result.GetTotal()
 		current += len(result.Issues)
@@ -111,14 +111,14 @@ func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[st
 	}
 
 	var genericIssues []*generic.Issue
-	for i := range issues {
+	for _, i := range issues {
 		genericIssues = append(genericIssues, i)
 	}
 	var authoredPRs, reviewedPRs []*generic.Changelist
-	for pr := range authored {
+	for _, pr := range authored {
 		authoredPRs = append(authoredPRs, pr)
 	}
-	for pr := range reviewed {
+	for _, pr := range reviewed {
 		reviewedPRs = append(reviewedPRs, pr)
 	}
 	return map[string][][]string{

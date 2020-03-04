@@ -24,28 +24,31 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 		id      int
 	}
 	ownerIDs := make(map[ownerKey]bool)
-	authored := make(map[*generic.Changelist]bool)
-	reviewed := make(map[*generic.Changelist]bool)
+	authored := make(map[string]*generic.Changelist)
+	reviewed := make(map[string]*generic.Changelist)
 	if err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
 		// First, collect all CLs authored by the user.
 		project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
-			if cl.Owner() != nil && emailset[cl.Owner().Email()] {
-				if cl.Status != "merged" {
-					return nil
-				}
-				// TODO(rstambler): Owner IDs change between branches. Support non-master branches.
-				if cl.Branch() == "master" && cl.OwnerID() != -1 {
-					ownerIDs[ownerKey{project, cl.OwnerID()}] = true
-				}
-				if cl.Created.After(start) {
-					authored[&generic.Changelist{
-						Link:        link(cl),
-						Author:      cl.Owner().Email(),
-						Description: cl.Subject(),
-						Repo:        project.Project(),
-						Category:    extractCategory(cl.Subject()),
-					}] = true
-				}
+			if cl.Owner() == nil || !emailset[cl.Owner().Email()] {
+				return nil
+			}
+			if cl.Status != "merged" {
+				return nil
+			}
+			// TODO(rstambler): Owner IDs change between branches. Support non-master branches.
+			if cl.Branch() == "master" && cl.OwnerID() != -1 {
+				ownerIDs[ownerKey{project, cl.OwnerID()}] = true
+			}
+			if cl.Created.Before(start) {
+				return nil
+			}
+			l := link(cl)
+			authored[l] = &generic.Changelist{
+				Link:        l,
+				Author:      cl.Owner().Email(),
+				Description: cl.Subject(),
+				Repo:        project.Project(),
+				Category:    extractCategory(cl.Subject()),
 			}
 			return nil
 		})
@@ -88,13 +91,14 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 				} else if !emailset[msg.Author.Email()] {
 					continue
 				}
-				reviewed[&generic.Changelist{
-					Link:        link(cl),
+				l := link(cl)
+				reviewed[l] = &generic.Changelist{
+					Link:        l,
 					Author:      cl.Owner().Email(),
 					Description: cl.Subject(),
 					Repo:        project.Project(),
 					Category:    extractCategory(cl.Subject()),
-				}] = true
+				}
 				return nil
 			}
 			return nil
@@ -104,10 +108,10 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 	}
 
 	var authoredCLs, reviewedCLs []*generic.Changelist
-	for cl := range authored {
+	for _, cl := range authored {
 		authoredCLs = append(authoredCLs, cl)
 	}
-	for cl := range reviewed {
+	for _, cl := range reviewed {
 		reviewedCLs = append(reviewedCLs, cl)
 	}
 	return map[string][][]string{
