@@ -19,11 +19,7 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 	for _, e := range emails {
 		emailset[e] = true
 	}
-	type ownerKey struct {
-		project *maintner.GerritProject
-		id      int
-	}
-	ownerIDs := make(map[ownerKey]bool)
+	ownerIDs := make(map[*maintner.GerritProject]int)
 	authored := make(map[string]*generic.Changelist)
 	reviewed := make(map[string]*generic.Changelist)
 	if err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
@@ -37,7 +33,15 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 			}
 			// TODO(rstambler): Owner IDs change between branches. Support non-master branches.
 			if cl.Branch() == "master" && cl.OwnerID() != -1 {
-				ownerIDs[ownerKey{project, cl.OwnerID()}] = true
+				if id, ok := ownerIDs[project]; ok && id != cl.OwnerID() {
+					// The CL could be a cherry-pick from internal Gerrit. If so, skip it.
+					if strings.HasPrefix(cl.Footer("Reviewed-on:"), "https://team-review.git.corp.google.com/") {
+						return nil
+					}
+					log.Printf("Conflicting owner IDs (have %v, got %v) caused by %v. Ignoring that CL, please file an issue if you were involved in the CL.", id, cl.OwnerID(), link(cl))
+				} else {
+					ownerIDs[project] = cl.OwnerID()
+				}
 			}
 			if cl.Created.Before(start) {
 				return nil
@@ -85,7 +89,7 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 					if err != nil {
 						log.Fatal(err)
 					}
-					if !ownerIDs[ownerKey{project, int(id)}] {
+					if ownerIDs[project] != int(id) {
 						continue
 					}
 				} else if !emailset[msg.Author.Email()] {
