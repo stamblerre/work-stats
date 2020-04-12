@@ -15,13 +15,58 @@ import (
 
 // Get some statistics on issues opened, closed, and commented on.
 func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map[string][][]string, error) {
+	authored, _, reviewed, err := changelists(gerrit, emails, start, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	var authoredCLs, reviewedCLs []*generic.Changelist
+	for _, cl := range authored {
+		authoredCLs = append(authoredCLs, cl)
+	}
+	for _, cl := range reviewed {
+		reviewedCLs = append(reviewedCLs, cl)
+	}
+	return map[string][][]string{
+		"golang-authored": generic.AuthoredChangelistsToCells(authoredCLs),
+		"golang-reviewed": generic.ReviewedChangelistsToCells(reviewedCLs),
+	}, nil
+}
+
+func ownerIDsForEmails(gerrit *maintner.Gerrit, emailset map[string]bool) (map[*maintner.GerritProject]int, error) {
+	ownerIDs := make(map[*maintner.GerritProject]int)
+	err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
+		return project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
+			if cl.Owner() == nil || !emailset[cl.Owner().Email()] {
+				return nil
+			}
+			if cl.Status != "merged" {
+				return nil
+			}
+			// TODO(rstambler): Owner IDs change between branches. Support non-master branches.
+			if cl.Branch() == "master" && cl.OwnerID() != -1 {
+				if id, ok := ownerIDs[project]; ok && id != cl.OwnerID() {
+					// The CL could be a cherry-pick from internal Gerrit. If so, skip it.
+					if strings.HasPrefix(cl.Footer("Reviewed-on:"), "https://team-review.git.corp.google.com/") {
+						return nil
+					}
+					log.Printf("Conflicting owner IDs (have %v, got %v) caused by %v. Ignoring that CL, please file an issue if you were involved in the CL.", id, cl.OwnerID(), link(cl))
+				} else {
+					ownerIDs[project] = cl.OwnerID()
+				}
+			}
+		})
+	})
+	return ownerIDs, err
+}
+
+func changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time) (merged, inProgress, reviewed map[string]*generic.Changelist, err error) {
 	emailset := make(map[string]bool)
 	for _, e := range emails {
 		emailset[e] = true
 	}
-	ownerIDs := make(map[*maintner.GerritProject]int)
-	authored := make(map[string]*generic.Changelist)
-	reviewed := make(map[string]*generic.Changelist)
+	merged = make(map[string]*generic.Changelist)
+	inProgress = make(map[string]*generic.Changelist)
+	reviewed = make(map[string]*generic.Changelist)
 	if err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
 		// First, collect all CLs authored by the user.
 		project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
@@ -47,7 +92,7 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 				return nil
 			}
 			l := link(cl)
-			authored[l] = &generic.Changelist{
+			merged[l] = &generic.Changelist{
 				Link:        l,
 				Author:      cl.Owner().Email(),
 				Description: cl.Subject(),
@@ -58,10 +103,10 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 		})
 		return nil
 	}); err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	if len(ownerIDs) == 0 {
-		return nil, errors.Errorf("unable to collect review data, user has never authored a CL, so the reviewer ID cannot be matched")
+		return nil, nil, nil, errors.Errorf("unable to collect review data, user has never authored a CL, so the reviewer ID cannot be matched")
 	}
 	if err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
 		// We have to do this call separately, since we have to make sure that the owner ID has been set correctly.
@@ -108,20 +153,9 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start time.Time) (map
 			return nil
 		})
 	}); err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
-
-	var authoredCLs, reviewedCLs []*generic.Changelist
-	for _, cl := range authored {
-		authoredCLs = append(authoredCLs, cl)
-	}
-	for _, cl := range reviewed {
-		reviewedCLs = append(reviewedCLs, cl)
-	}
-	return map[string][][]string{
-		"golang-authored": generic.AuthoredChangelistsToCells(authoredCLs),
-		"golang-reviewed": generic.ReviewedChangelistsToCells(reviewedCLs),
-	}, nil
+	return merged, inProgress, reviewed, nil
 }
 
 func link(cl *maintner.GerritCL) string {

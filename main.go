@@ -40,6 +40,9 @@ var (
 func main() {
 	flag.Parse()
 
+	// Snippets are a summary of a user's contributions over the past week.
+	snippets := flag.Arg(0) == "snippets"
+
 	// Username and email are required flags.
 	// If since is omitted, results reflect all history.
 	if *username == "" && *gitHubFlag {
@@ -60,6 +63,9 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+	} else if snippets {
+		// If we're generating a snippet report, the start date is a week ago.
+		start = time.Now().AddDate(0, 0, -7)
 	} else {
 		start = time.Date(1900, time.January, 1, 0, 0, 0, 0, time.UTC)
 	}
@@ -114,19 +120,29 @@ func main() {
 		}
 	}
 
+	if snippets {
+		for key, data := range rowData {
+			switch key {
+			case "golang-issues":
+				for _, row := range data {
+					for _, v := range row.Values {
+						log.Printf("V: %v", v.EffectiveValue)
+					}
+				}
+			}
+		}
+	}
+
 	// Optionally write output to Google Sheets.
 	if *googleSheetsFlag == "" {
 		return
 	}
-
 	if *tokenFile == "" {
 		log.Fatal("please provide -token when using -sheets")
 	}
-
 	if *credentialsFile == "" {
 		log.Fatal("please provide -credentials when using -sheets")
 	}
-
 	srv, err := googleSheetsService(ctx)
 	if err != nil {
 		log.Fatal(err)
@@ -390,6 +406,5 @@ func getSpreadsheetID() (string, error) {
 			spreadsheetID = match[i]
 		}
 	}
-
 	return spreadsheetID, nil
 }
