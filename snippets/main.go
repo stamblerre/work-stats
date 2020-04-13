@@ -44,10 +44,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	var b strings.Builder
-	b.WriteString("----------------------------------------------\n")
-
 	if *gerritFlag {
 		authored, reviewed, err := golang.Changelists(corpus.Gerrit(), emails, start, end)
 		if err != nil {
