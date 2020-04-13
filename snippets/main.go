@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/stamblerre/work-stats/generic"
 	"github.com/stamblerre/work-stats/github"
@@ -38,26 +37,8 @@ func main() {
 	}
 	emails := strings.Split(*email, ",")
 
-	// Assume that users will run the command on Fri, Sat, Sun, or Mon.
-	// Look for the previous week.
-	now := time.Now()
-	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-
-	// If this command is running on a Monday, assume that it's for the pevious
-	// week and look for the preceding Monday.
-	if start.Weekday() == time.Monday {
-		start = start.AddDate(0, 0, -1)
-	}
-	end := start
-	for start.Weekday() != time.Monday {
-		start = start.AddDate(0, 0, -1)
-	}
-	for end.Weekday() != time.Sunday && end.After(start) {
-		end = end.AddDate(0, 0, -1)
-	}
-	end = end.Add(24 * time.Hour)
-
-	log.Printf("Generating snippets for the week from %s to %s", start.Format("01-02-2006"), end.Format("01-02-2006"))
+	start, end := generic.SnippetTimeRange()
+	log.Printf("Generating weekly snippets for dates %s to %s", start.Format("01-02-2006"), end.Format("01-02-2006"))
 
 	corpus, err := godata.Get(ctx)
 	if err != nil {
@@ -87,19 +68,19 @@ func main() {
 		if len(merged) > 0 {
 			b.WriteString("## CLs Merged\n\n")
 			for _, cl := range merged {
-				b.WriteString(fmt.Sprintf("* [CL %d](https://%s): %s\n", cl.Number, cl.Link, cl.Description))
+				b.WriteString(formatCL(cl))
 			}
 		}
 		if len(inProgress) > 0 {
 			b.WriteString("\n## CLs In Progress\n\n")
 			for _, cl := range inProgress {
-				b.WriteString(fmt.Sprintf(" * [CL %d](https://%s): %s\n", cl.Number, cl.Link, cl.Description))
+				b.WriteString(formatCL(cl))
 			}
 		}
 		if len(reviewed) > 0 {
 			b.WriteString("\n## CLs Reviewed\n\n")
 			for _, cl := range reviewed {
-				b.WriteString(fmt.Sprintf("* [CL %d](https://%s): %s\n", cl.Number, cl.Link, cl.Description))
+				b.WriteString(formatCL(cl))
 			}
 		}
 		if len(issues) > 0 {
@@ -123,25 +104,32 @@ func main() {
 		if len(merged) > 0 {
 			b.WriteString("## PRs Merged\n\n")
 			for _, pr := range merged {
-				b.WriteString(fmt.Sprintf("* [%s#%d](%s): %s\n", pr.Repo, pr.Number, pr.Link, pr.Description))
+				b.WriteString(formatPR(pr))
 			}
 		}
 		if len(inProgress) > 0 {
 			b.WriteString("\n## PRs In Progress\n\n")
 			for _, pr := range inProgress {
-				b.WriteString(fmt.Sprintf("* [%s#%d](%s): %s\n", pr.Repo, pr.Number, pr.Link, pr.Description))
+				b.WriteString(formatPR(pr))
 			}
 		}
 		if len(reviewed) > 0 {
 			b.WriteString("\n## PRs Reviewed\n\n")
 			for _, pr := range reviewed {
-				b.WriteString(fmt.Sprintf("* [%s#%d](%s): %s\n", pr.Repo, pr.Number, pr.Link, pr.Description))
+				b.WriteString(formatPR(pr))
 			}
 		}
 		if len(issues) > 0 {
 			b.WriteString(fmt.Sprintf("\n### Commented on %v GitHub issues\n\n", len(issues)))
 		}
 	}
-
 	fmt.Println(b.String())
+}
+
+func formatCL(cl *generic.Changelist) string {
+	return fmt.Sprintf(" * [CL %d](https://%s): %s\n", cl.Number, cl.Link, cl.Description)
+}
+
+func formatPR(pr *generic.Changelist) string {
+	return fmt.Sprintf("* [%s#%d](%s): %s\n", pr.Repo, pr.Number, pr.Link, pr.Description)
 }
