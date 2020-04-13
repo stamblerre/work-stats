@@ -1,3 +1,0 @@
-package golang
-
-func MergedCLs() {}

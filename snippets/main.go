@@ -8,8 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stamblerre/work-stats/generic"
-	"golang.org/x/build/maintner"
+	"github.com/stamblerre/work-stats/golang"
 	"golang.org/x/build/maintner/godata"
 )
 
@@ -54,61 +53,29 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	merged, _, _, err := changelists(corpus.Gerrit(), emails, start, end)
+	authored, reviewed, err := golang.Changelists(corpus.Gerrit(), emails, start, end)
 	if err != nil {
 		log.Fatal(err)
 	}
-	for k, v := range merged {
-		log.Printf("K: %v, V: %v", k, v)
-	}
-}
-
-func changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time) (merged, inProgress, reviewed map[string]*generic.Changelist, err error) {
-	emailset := make(map[string]bool)
-	for _, e := range emails {
-		emailset[e] = true
-	}
-	merged = make(map[string]*generic.Changelist)
-	inProgress = make(map[string]*generic.Changelist)
-	reviewed = make(map[string]*generic.Changelist)
-	if err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
-		if err := project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
-			if cl.Owner() == nil || !emailset[cl.Owner().Email()] {
-				return nil
-			}
-			var thisWeek bool
-			for _, meta := range cl.Metas {
-				log.Printf("CL: %v", meta.Commit.Author.String())
-				if !emailset[meta.Commit.Author.Email()] {
-					continue
-				}
-				if t := meta.Commit.CommitTime; t.After(start) && t.Before(end) {
-					thisWeek = true
-					break
-				}
-			}
-			if !thisWeek {
-				return nil
-			}
-			l := link(cl)
-			log.Printf("HELLO: %v", l)
-			merged[l] = &generic.Changelist{
-				Link:        l,
-				Author:      cl.Owner().Email(),
-				Description: cl.Subject(),
-				Repo:        project.Project(),
-			}
-			return nil
-		}); err != nil {
-			return err
+	fmt.Println("---------------------------------")
+	var b strings.Builder
+	b.WriteString("## CLs Merged\n\n")
+	for _, cl := range authored {
+		if cl.Status != "merged" {
+			continue
 		}
-		return nil
-	}); err != nil {
-		return nil, nil, nil, err
+		b.WriteString(fmt.Sprintf("* [CL %d](https://%s): %s\n", cl.Number, cl.Link, cl.Description))
 	}
-	return merged, inProgress, reviewed, nil
-}
-
-func link(cl *maintner.GerritCL) string {
-	return fmt.Sprintf("go-review.googlesource.com/c/%s/+/%v", cl.Project.Project(), cl.Number)
+	b.WriteString("\n## CLs In Progress\n\n")
+	for _, cl := range authored {
+		if cl.Status == "merged" {
+			continue
+		}
+		b.WriteString(fmt.Sprintf(" * [CL %d](https://%s): %s\n", cl.Number, cl.Link, cl.Description))
+	}
+	b.WriteString("\n## CLs Reviewed\n\n")
+	for _, cl := range reviewed {
+		b.WriteString(fmt.Sprintf("* [CL %d](https://%s): %s\n", cl.Number, cl.Link, cl.Description))
+	}
+	fmt.Println(b.String())
 }

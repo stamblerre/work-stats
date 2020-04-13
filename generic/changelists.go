@@ -6,11 +6,13 @@ import (
 )
 
 type Changelist struct {
+	Number      int
 	Link        string
 	Description string
 	Author      string
 	Repo        string
 	Category    string
+	Status      string
 }
 
 func AuthoredChangelistsToCells(cls []*Changelist) [][]string {

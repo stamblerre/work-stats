@@ -100,7 +100,7 @@ func main() {
 		if err := write(ctx, dir, goIssues, rowData); err != nil {
 			log.Fatal(err)
 		}
-		goCLs, err := golang.Changelists(corpus.Gerrit(), emails, start)
+		goCLs, err := golang.CategorizeChangelists(corpus.Gerrit(), emails, start, time.Now())
 		if err != nil {
 			log.Fatal(err)
 		}
