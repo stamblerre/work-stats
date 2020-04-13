@@ -124,7 +124,7 @@ func main() {
 }
 
 func formatCL(cl *generic.Changelist) string {
-	return fmt.Sprintf(" * [CL %d](https://%s): %s\n", cl.Number, cl.Link, cl.Description)
+	return fmt.Sprintf(" * [%d](https://%s): %s\n", cl.Number, cl.Link, cl.Description)
 }
 
 func formatPR(pr *generic.Changelist) string {
