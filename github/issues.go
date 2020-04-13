@@ -58,7 +58,7 @@ outer:
 	for {
 		var current int
 		for i := 0; i < 10; i++ {
-			result, _, err := client.Search.Issues(ctx, fmt.Sprintf("involves:%v -user:golang updated:%s..%s", username, last.Format("2006-01-02"), end.Format("2006-01-02")), &github.SearchOptions{
+			result, _, err := client.Search.Issues(ctx, fmt.Sprintf("involves:%v -user:golang updated:%s..%s", username, last.Format(time.RFC3339), end.Format(time.RFC3339)), &github.SearchOptions{
 				ListOptions: github.ListOptions{
 					Page:    i,
 					PerPage: 100,
