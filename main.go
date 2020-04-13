@@ -85,6 +85,8 @@ func main() {
 	ctx := context.Background()
 	rowData := make(map[string][]*sheets.RowData)
 
+	end := time.Now()
+
 	// Write out data on the user's activity on the Go project's GitHub issues
 	// and the Go project's Gerrit code reviews.
 	if *gerritFlag {
@@ -93,14 +95,14 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		goIssues, err := golang.Issues(corpus.GitHub(), *username, start)
+		goIssues, err := golang.CategorizeIssues(corpus.GitHub(), *username, start, end)
 		if err != nil {
 			log.Fatal(err)
 		}
 		if err := write(ctx, dir, goIssues, rowData); err != nil {
 			log.Fatal(err)
 		}
-		goCLs, err := golang.CategorizeChangelists(corpus.Gerrit(), emails, start, time.Now())
+		goCLs, err := golang.CategorizeChangelists(corpus.Gerrit(), emails, start, end)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -111,25 +113,12 @@ func main() {
 
 	// Write out data on the user's activity on GitHub issues outside of the Go project.
 	if *gitHubFlag {
-		githubIssues, err := github.IssuesAndPRs(ctx, *username, start)
+		githubIssues, err := github.CategorizeIssuesAndPRs(ctx, *username, start, end)
 		if err != nil {
 			log.Fatal(err)
 		}
 		if err := write(ctx, dir, githubIssues, rowData); err != nil {
 			log.Fatal(err)
-		}
-	}
-
-	if snippets {
-		for key, data := range rowData {
-			switch key {
-			case "golang-issues":
-				for _, row := range data {
-					for _, v := range row.Values {
-						log.Printf("V: %v", v.EffectiveValue)
-					}
-				}
-			}
 		}
 	}
 

@@ -12,8 +12,18 @@ type Changelist struct {
 	Author      string
 	Repo        string
 	Category    string
-	Status      string
+	Status      ChangelistStatus
 }
+
+type ChangelistStatus int
+
+const (
+	Merged = ChangelistStatus(iota)
+	Abandoned
+	New
+	Draft
+	Unknown
+)
 
 func AuthoredChangelistsToCells(cls []*Changelist) [][]string {
 	repos := make(map[string][]*Changelist)

@@ -13,10 +13,33 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[string][][]string, error) {
+func CategorizeIssuesAndPRs(ctx context.Context, username string, start, end time.Time) (map[string][][]string, error) {
+	authored, reviewed, issues, err := IssuesAndPRs(ctx, username, start, end)
+	if err != nil {
+		return nil, err
+	}
+	var genericIssues []*generic.Issue
+	for _, i := range issues {
+		genericIssues = append(genericIssues, i)
+	}
+	var authoredPRs, reviewedPRs []*generic.Changelist
+	for _, pr := range authored {
+		authoredPRs = append(authoredPRs, pr)
+	}
+	for _, pr := range reviewed {
+		reviewedPRs = append(reviewedPRs, pr)
+	}
+	return map[string][][]string{
+		"github-issues":       generic.IssuesToCells(genericIssues),
+		"github-prs-authored": generic.AuthoredChangelistsToCells(authoredPRs),
+		"github-prs-reviewed": generic.ReviewedChangelistsToCells(reviewedPRs),
+	}, nil
+}
+
+func IssuesAndPRs(ctx context.Context, username string, start, end time.Time) (authored, reviewed map[string]*generic.Changelist, issues map[string]*generic.Issue, err error) {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
-		return nil, fmt.Errorf("GITHUB_TOKEN environment variable is not configured")
+		return nil, nil, nil, fmt.Errorf("GITHUB_TOKEN environment variable is not configured")
 	}
 	ts := oauth2.StaticTokenSource(&oauth2.Token{
 		AccessToken: token,
@@ -24,18 +47,18 @@ func IssuesAndPRs(ctx context.Context, username string, since time.Time) (map[st
 	tc := oauth2.NewClient(ctx, ts)
 	client := github.NewClient(tc)
 
-	issues := make(map[string]*generic.Issue)
-	authored := make(map[string]*generic.Changelist)
-	reviewed := make(map[string]*generic.Changelist)
+	issues = make(map[string]*generic.Issue)
+	authored = make(map[string]*generic.Changelist)
+	reviewed = make(map[string]*generic.Changelist)
 	seen := make(map[string]struct{})
 
 	var mostRecentIssue time.Time
-	last := since
+	last := start
 outer:
 	for {
 		var current int
 		for i := 0; i < 10; i++ {
-			result, _, err := client.Search.Issues(ctx, fmt.Sprintf("involves:%v -user:golang updated:>=%v", username, last.Format("2006-01-02")), &github.SearchOptions{
+			result, _, err := client.Search.Issues(ctx, fmt.Sprintf("involves:%v -user:golang updated:%s..%s", username, last.Format("2006-01-02"), end.Format("2006-01-02")), &github.SearchOptions{
 				ListOptions: github.ListOptions{
 					Page:    i,
 					PerPage: 100,
@@ -44,7 +67,7 @@ outer:
 				Order: "asc",
 			})
 			if err != nil {
-				return nil, err
+				return nil, nil, nil, err
 			}
 			for _, issue := range result.Issues {
 				if _, ok := seen[issue.GetHTMLURL()]; ok {
@@ -60,13 +83,20 @@ outer:
 					continue
 				}
 				// Only mark issues as opened if the user opened them since the specified date.
-				opened := issue.GetUser().GetLogin() == username && issue.GetCreatedAt().After(since)
+				opened := issue.GetUser().GetLogin() == username
+				closed := issue.GetClosedBy() != nil
 				if issue.IsPullRequest() {
+					status := generic.Unknown
+					if closed {
+						status = generic.Merged
+					}
 					gc := &generic.Changelist{
 						Repo:        fmt.Sprintf("%s/%s", org, repo),
 						Description: issue.GetTitle(),
 						Link:        issue.GetHTMLURL(),
 						Author:      issue.GetUser().GetLogin(),
+						Number:      issue.GetNumber(),
+						Status:      status,
 					}
 					if opened {
 						authored[issue.GetHTMLURL()] = gc
@@ -75,33 +105,16 @@ outer:
 					}
 					continue
 				}
-				events, _, err := client.Issues.ListIssueEvents(ctx, org, repo, issue.GetNumber(), nil)
-				if err != nil {
-					return nil, err
-				}
-				var closed bool
-				for _, e := range events {
-					if e.GetActor().GetLogin() != username {
-						continue
-					}
-					if e.GetCreatedAt().Before(since) {
-						continue
-					}
-					switch e.GetEvent() {
-					case "closed":
-						closed = true
-					}
-				}
 				comments, _, err := client.Issues.ListComments(ctx, org, repo, issue.GetNumber(), nil)
 				if err != nil {
-					return nil, err
+					return nil, nil, nil, err
 				}
 				var numComments int
 				for _, c := range comments {
 					if c.GetUser().GetLogin() != username {
 						continue
 					}
-					if c.GetCreatedAt().Before(since) {
+					if !inScope(c.GetCreatedAt(), start, end) {
 						continue
 					}
 					numComments++
@@ -122,21 +135,9 @@ outer:
 		}
 		last = mostRecentIssue
 	}
+	return authored, reviewed, issues, nil
+}
 
-	var genericIssues []*generic.Issue
-	for _, i := range issues {
-		genericIssues = append(genericIssues, i)
-	}
-	var authoredPRs, reviewedPRs []*generic.Changelist
-	for _, pr := range authored {
-		authoredPRs = append(authoredPRs, pr)
-	}
-	for _, pr := range reviewed {
-		reviewedPRs = append(reviewedPRs, pr)
-	}
-	return map[string][][]string{
-		"github-issues":       generic.IssuesToCells(genericIssues),
-		"github-prs-authored": generic.AuthoredChangelistsToCells(authoredPRs),
-		"github-prs-reviewed": generic.ReviewedChangelistsToCells(reviewedPRs),
-	}, nil
+func inScope(t, start, end time.Time) bool {
+	return t.After(start) && t.Before(end)
 }

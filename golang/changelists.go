@@ -45,16 +45,16 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 	}
 	if err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
 		// First, collect all CLs authored by the user.
-		project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
+		err := project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
 			if cl.Owner() == nil || !emailset[cl.Owner().Email()] {
+				return nil
+			}
+			if cl.Status == "abandoned" {
 				return nil
 			}
 			key := key(cl)
 			var match bool
 			for _, meta := range cl.Metas {
-				if cl.Status == "abandoned" {
-					continue
-				}
 				if !inScope(cl.Commit.AuthorTime, start, end) {
 					continue
 				}
@@ -75,11 +75,11 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 				Description: cl.Subject(),
 				Repo:        project.Project(),
 				Category:    extractCategory(cl.Subject()),
-				Status:      cl.Status,
+				Status:      toStatus(cl.Status),
 			}
 			return nil
 		})
-		return nil
+		return err
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -123,7 +123,7 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 				Description: cl.Subject(),
 				Repo:        project.Project(),
 				Category:    extractCategory(cl.Subject()),
-				Status:      cl.Status,
+				Status:      toStatus(cl.Status),
 			}
 			return nil
 		})
@@ -203,4 +203,18 @@ func link(cl *maintner.GerritCL) string {
 
 func inScope(t, start, end time.Time) bool {
 	return t.After(start) && t.Before(end)
+}
+
+func toStatus(s string) generic.ChangelistStatus {
+	switch s {
+	case "merged":
+		return generic.Merged
+	case "abandoned":
+		return generic.Abandoned
+	case "new":
+		return generic.New
+	case "draft":
+		return generic.Draft
+	}
+	return generic.Unknown
 }

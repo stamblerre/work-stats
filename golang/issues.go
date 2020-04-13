@@ -10,10 +10,24 @@ import (
 )
 
 // Get some statistics on issues opened, closed, and commented on.
-func Issues(github *maintner.GitHub, username string, start time.Time) (map[string][][]string, error) {
+func CategorizeIssues(github *maintner.GitHub, username string, start, end time.Time) (map[string][][]string, error) {
+	stats, err := Issues(github, username, start, end)
+	if err != nil {
+		return nil, err
+	}
+	var issues []*generic.Issue
+	for _, issue := range stats {
+		issues = append(issues, issue)
+	}
+	return map[string][][]string{
+		"golang-issues": generic.IssuesToCells(issues),
+	}, nil
+}
+
+func Issues(github *maintner.GitHub, username string, start, end time.Time) (map[*maintner.GitHubIssue]*generic.Issue, error) {
 	stats := make(map[*maintner.GitHubIssue]*generic.Issue)
 
-	github.ForeachRepo(func(repo *maintner.GitHubRepo) error {
+	err := github.ForeachRepo(func(repo *maintner.GitHubRepo) error {
 		return repo.ForeachIssue(func(issue *maintner.GitHubIssue) error {
 			maybeAddIssue := func() {
 				if _, ok := stats[issue]; !ok {
@@ -28,15 +42,15 @@ func Issues(github *maintner.GitHub, username string, start time.Time) (map[stri
 			}
 			// Check if the user opened the given issue.
 			if issue.User != nil && issue.User.Login == username {
-				if issue.Created.After(start) {
+				if inScope(issue.Created, start, end) {
 					maybeAddIssue()
 					stats[issue].Opened = true
 				}
 			}
 			// Check if the user closed the issue.
-			issue.ForeachEvent(func(event *maintner.GitHubIssueEvent) error {
+			if err := issue.ForeachEvent(func(event *maintner.GitHubIssueEvent) error {
 				if event.Actor != nil && event.Actor.Login == username {
-					if event.Created.After(start) {
+					if inScope(event.Created, start, end) {
 						switch event.Type {
 						case "closed":
 							maybeAddIssue()
@@ -46,26 +60,21 @@ func Issues(github *maintner.GitHub, username string, start time.Time) (map[stri
 
 				}
 				return nil
-			})
-			issue.ForeachComment(func(comment *maintner.GitHubComment) error {
+			}); err != nil {
+				return err
+			}
+			return issue.ForeachComment(func(comment *maintner.GitHubComment) error {
 				if comment.User != nil && comment.User.Login == username {
-					if comment.Created.After(start) {
+					if inScope(comment.Created, start, end) {
 						maybeAddIssue()
 						stats[issue].Comments++
 					}
 				}
 				return nil
 			})
-			return nil
 		})
 	})
-	var issues []*generic.Issue
-	for _, issue := range stats {
-		issues = append(issues, issue)
-	}
-	return map[string][][]string{
-		"golang-issues": generic.IssuesToCells(issues),
-	}, nil
+	return stats, err
 }
 
 func extractCategory(description string) string {
