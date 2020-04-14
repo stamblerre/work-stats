@@ -1,3 +1,4 @@
+![Go](https://github.com/stamblerre/work-stats/workflows/Go/badge.svg)
 # work-stats
 
 A command-line tool for getting data on a user's open-source work, specific to Go contributors. It uses [maintner](https://pkg.go.dev/golang.org/x/build/maintner?tab=doc) to get more detailed statistics about Go contributions, and it uses the GitHub API to get information on other GitHub contributions.
