@@ -40,12 +40,12 @@ func main() {
 	start, end := generic.SnippetTimeRange()
 	log.Printf("Generating weekly snippets for dates %s to %s", start.Format("01-02-2006"), end.Format("01-02-2006"))
 
-	corpus, err := godata.Get(ctx)
-	if err != nil {
-		log.Fatal(err)
-	}
 	var b strings.Builder
 	if *gerritFlag {
+		corpus, err := godata.Get(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
 		authored, reviewed, err := golang.Changelists(corpus.Gerrit(), emails, start, end)
 		if err != nil {
 			log.Fatal(err)

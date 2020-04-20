@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/stamblerre/work-stats/generic"
 	"github.com/stamblerre/work-stats/github"
 	"github.com/stamblerre/work-stats/golang"
 	"golang.org/x/build/maintner/godata"
@@ -95,29 +96,38 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		goIssues, err := golang.CategorizeIssues(corpus.GitHub(), *username, start, end)
+		issues, err := golang.Issues(corpus.GitHub(), *username, start, end)
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := write(ctx, dir, goIssues, rowData); err != nil {
+		if err := write(ctx, dir, map[string][][]string{
+			"golang-issues": generic.IssuesToCells(issues),
+		}, rowData); err != nil {
 			log.Fatal(err)
 		}
-		goCLs, err := golang.CategorizeChangelists(corpus.Gerrit(), emails, start, end)
+		authored, reviewed, err := golang.Changelists(corpus.Gerrit(), emails, start, end)
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := write(ctx, dir, goCLs, rowData); err != nil {
+		if err := write(ctx, dir, map[string][][]string{
+			"golang-authored": generic.AuthoredChangelistsToCells(authored),
+			"golang-reviewed": generic.ReviewedChangelistsToCells(reviewed),
+		}, rowData); err != nil {
 			log.Fatal(err)
 		}
 	}
 
 	// Write out data on the user's activity on GitHub issues outside of the Go project.
 	if *gitHubFlag {
-		githubIssues, err := github.CategorizeIssuesAndPRs(ctx, *username, start, end)
+		authored, reviewed, issues, err := github.IssuesAndPRs(ctx, *username, start, end)
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := write(ctx, dir, githubIssues, rowData); err != nil {
+		if err := write(ctx, dir, map[string][][]string{
+			"github-issues":       generic.IssuesToCells(issues),
+			"github-prs-authored": generic.AuthoredChangelistsToCells(authored),
+			"github-prs-reviewed": generic.ReviewedChangelistsToCells(reviewed),
+		}, rowData); err != nil {
 			log.Fatal(err)
 		}
 	}

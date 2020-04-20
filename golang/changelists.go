@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -13,32 +14,13 @@ import (
 	"golang.org/x/build/maintner"
 )
 
-// Get some statistics on issues opened, closed, and commented on.
-func CategorizeChangelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time) (map[string][][]string, error) {
-	authored, reviewed, err := Changelists(gerrit, emails, start, end)
-	if err != nil {
-		return nil, err
-	}
-	var authoredCLs, reviewedCLs []*generic.Changelist
-	for _, cl := range authored {
-		authoredCLs = append(authoredCLs, cl)
-	}
-	for _, cl := range reviewed {
-		reviewedCLs = append(reviewedCLs, cl)
-	}
-	return map[string][][]string{
-		"golang-authored": generic.AuthoredChangelistsToCells(authoredCLs),
-		"golang-reviewed": generic.ReviewedChangelistsToCells(reviewedCLs),
-	}, nil
-}
-
-func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time) (authored, reviewed map[string]*generic.Changelist, err error) {
+func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time) (authored, reviewed []*generic.Changelist, err error) {
 	emailset := make(map[string]bool)
 	for _, e := range emails {
 		emailset[e] = true
 	}
-	authored = make(map[string]*generic.Changelist)
-	reviewed = make(map[string]*generic.Changelist)
+	authoredMap := make(map[string]*generic.Changelist)
+	reviewedMap := make(map[string]*generic.Changelist)
 	ownerIDs, err := OwnerIDs(gerrit, emailset)
 	if err != nil {
 		return nil, nil, err
@@ -58,7 +40,7 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 				if !inScope(cl.Commit.AuthorTime, start, end) {
 					continue
 				}
-				id := personToId(meta.Commit.Author)
+				id := personToID(meta.Commit.Author)
 				if ownerID := ownerIDs[key]; ownerID == id {
 					match = true
 					break
@@ -68,7 +50,7 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 				return nil
 			}
 			l := link(cl)
-			authored[l] = &generic.Changelist{
+			authoredMap[l] = &generic.Changelist{
 				Number:      int(cl.Number),
 				Link:        l,
 				Author:      cl.Owner().Email(),
@@ -104,7 +86,7 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 				}
 				// If the user's email is not actually tracked.
 				// Not sure why this happens for some people, but not others.
-				if id := personToId(msg.Author); ownerIDs[key] == int(id) {
+				if id := personToID(msg.Author); ownerIDs[key] == int(id) {
 					match = true
 					break
 				} else if emailset[msg.Author.Email()] {
@@ -116,7 +98,7 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 				return nil
 			}
 			l := link(cl)
-			reviewed[l] = &generic.Changelist{
+			reviewedMap[l] = &generic.Changelist{
 				Number:      int(cl.Number),
 				Link:        l,
 				Author:      cl.Owner().Email(),
@@ -130,15 +112,27 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 	}); err != nil {
 		return nil, nil, err
 	}
+	for _, cl := range authoredMap {
+		authored = append(authored, cl)
+	}
+	for _, cl := range reviewedMap {
+		reviewed = append(reviewed, cl)
+	}
+	sort.Slice(authored, func(i, j int) bool {
+		return authored[i].Link < authored[j].Link
+	})
+	sort.Slice(reviewed, func(i, j int) bool {
+		return reviewed[i].Link < reviewed[j].Link
+	})
 	return authored, reviewed, nil
 }
 
-type GerritIdKey struct {
+type GerritIDKey struct {
 	project, branch, status string
 }
 
-func OwnerIDs(gerrit *maintner.Gerrit, emailset map[string]bool) (map[GerritIdKey]int, error) {
-	ownerIDs := make(map[GerritIdKey]int)
+func OwnerIDs(gerrit *maintner.Gerrit, emailset map[string]bool) (map[GerritIDKey]int, error) {
+	ownerIDs := make(map[GerritIDKey]int)
 	err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
 		return project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
 			if cl.Owner() == nil || !emailset[cl.Owner().Email()] {
@@ -168,8 +162,8 @@ func OwnerIDs(gerrit *maintner.Gerrit, emailset map[string]bool) (map[GerritIdKe
 	return ownerIDs, err
 }
 
-// personToId returns the Gerrit ID for a given name of the form "Gerrit User 1234".
-func personToId(person *maintner.GitPerson) int {
+// personToID returns the Gerrit ID for a given name of the form "Gerrit User 1234".
+func personToID(person *maintner.GitPerson) int {
 	if person == nil {
 		return -1
 	}
@@ -189,8 +183,8 @@ func personToId(person *maintner.GitPerson) int {
 
 const gerritbotID = 12446
 
-func key(cl *maintner.GerritCL) GerritIdKey {
-	return GerritIdKey{
+func key(cl *maintner.GerritCL) GerritIDKey {
+	return GerritIDKey{
 		project: cl.Project.Project(),
 		branch:  cl.Branch(),
 		status:  cl.Status,

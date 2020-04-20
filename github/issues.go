@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -13,30 +14,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func CategorizeIssuesAndPRs(ctx context.Context, username string, start, end time.Time) (map[string][][]string, error) {
-	authored, reviewed, issues, err := IssuesAndPRs(ctx, username, start, end)
-	if err != nil {
-		return nil, err
-	}
-	var genericIssues []*generic.Issue
-	for _, i := range issues {
-		genericIssues = append(genericIssues, i)
-	}
-	var authoredPRs, reviewedPRs []*generic.Changelist
-	for _, pr := range authored {
-		authoredPRs = append(authoredPRs, pr)
-	}
-	for _, pr := range reviewed {
-		reviewedPRs = append(reviewedPRs, pr)
-	}
-	return map[string][][]string{
-		"github-issues":       generic.IssuesToCells(genericIssues),
-		"github-prs-authored": generic.AuthoredChangelistsToCells(authoredPRs),
-		"github-prs-reviewed": generic.ReviewedChangelistsToCells(reviewedPRs),
-	}, nil
-}
-
-func IssuesAndPRs(ctx context.Context, username string, start, end time.Time) (authored, reviewed map[string]*generic.Changelist, issues map[string]*generic.Issue, err error) {
+func IssuesAndPRs(ctx context.Context, username string, start, end time.Time) (authored, reviewed []*generic.Changelist, issues []*generic.Issue, err error) {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
 		return nil, nil, nil, fmt.Errorf("GITHUB_TOKEN environment variable is not configured")
@@ -47,9 +25,9 @@ func IssuesAndPRs(ctx context.Context, username string, start, end time.Time) (a
 	tc := oauth2.NewClient(ctx, ts)
 	client := github.NewClient(tc)
 
-	issues = make(map[string]*generic.Issue)
-	authored = make(map[string]*generic.Changelist)
-	reviewed = make(map[string]*generic.Changelist)
+	issuesMap := make(map[string]*generic.Issue)
+	authoredMap := make(map[string]*generic.Changelist)
+	reviewedMap := make(map[string]*generic.Changelist)
 	seen := make(map[string]struct{})
 
 	var mostRecentIssue time.Time
@@ -99,9 +77,9 @@ outer:
 						Status:      status,
 					}
 					if opened {
-						authored[issue.GetHTMLURL()] = gc
+						authoredMap[issue.GetHTMLURL()] = gc
 					} else {
-						reviewed[issue.GetHTMLURL()] = gc
+						reviewedMap[issue.GetHTMLURL()] = gc
 					}
 					continue
 				}
@@ -119,7 +97,7 @@ outer:
 					}
 					numComments++
 				}
-				issues[issue.GetHTMLURL()] = &generic.Issue{
+				issuesMap[issue.GetHTMLURL()] = &generic.Issue{
 					Repo:     fmt.Sprintf("%s/%s", org, repo),
 					Title:    issue.GetTitle(),
 					Link:     issue.GetHTMLURL(),
@@ -135,6 +113,24 @@ outer:
 		}
 		last = mostRecentIssue
 	}
+	for _, i := range issuesMap {
+		issues = append(issues, i)
+	}
+	sort.Slice(issues, func(i, j int) bool {
+		return issues[i].Link < issues[j].Link
+	})
+	for _, pr := range authoredMap {
+		authored = append(authored, pr)
+	}
+	for _, pr := range reviewedMap {
+		reviewed = append(reviewed, pr)
+	}
+	sort.Slice(authored, func(i, j int) bool {
+		return authored[i].Link < authored[j].Link
+	})
+	sort.Slice(reviewed, func(i, j int) bool {
+		return reviewed[i].Link < reviewed[j].Link
+	})
 	return authored, reviewed, issues, nil
 }
 

@@ -2,6 +2,7 @@ package golang
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -9,30 +10,15 @@ import (
 	"golang.org/x/build/maintner"
 )
 
-// Get some statistics on issues opened, closed, and commented on.
-func CategorizeIssues(github *maintner.GitHub, username string, start, end time.Time) (map[string][][]string, error) {
-	stats, err := Issues(github, username, start, end)
-	if err != nil {
-		return nil, err
-	}
-	var issues []*generic.Issue
-	for _, issue := range stats {
-		issues = append(issues, issue)
-	}
-	return map[string][][]string{
-		"golang-issues": generic.IssuesToCells(issues),
-	}, nil
-}
+func Issues(github *maintner.GitHub, username string, start, end time.Time) ([]*generic.Issue, error) {
+	issuesMap := make(map[*maintner.GitHubIssue]*generic.Issue)
 
-func Issues(github *maintner.GitHub, username string, start, end time.Time) (map[*maintner.GitHubIssue]*generic.Issue, error) {
-	stats := make(map[*maintner.GitHubIssue]*generic.Issue)
-
-	err := github.ForeachRepo(func(repo *maintner.GitHubRepo) error {
+	if err := github.ForeachRepo(func(repo *maintner.GitHubRepo) error {
 		return repo.ForeachIssue(func(issue *maintner.GitHubIssue) error {
 			maybeAddIssue := func() {
-				if _, ok := stats[issue]; !ok {
+				if _, ok := issuesMap[issue]; !ok {
 					r := fmt.Sprintf("%s/%s", repo.ID().Owner, repo.ID().Repo)
-					stats[issue] = &generic.Issue{
+					issuesMap[issue] = &generic.Issue{
 						Title:    issue.Title,
 						Repo:     r,
 						Link:     fmt.Sprintf("github.com/%s/issues/%v", r, issue.Number),
@@ -44,7 +30,7 @@ func Issues(github *maintner.GitHub, username string, start, end time.Time) (map
 			if issue.User != nil && issue.User.Login == username {
 				if inScope(issue.Created, start, end) {
 					maybeAddIssue()
-					stats[issue].Opened = true
+					issuesMap[issue].Opened = true
 				}
 			}
 			// Check if the user closed the issue.
@@ -54,7 +40,7 @@ func Issues(github *maintner.GitHub, username string, start, end time.Time) (map
 						switch event.Type {
 						case "closed":
 							maybeAddIssue()
-							stats[issue].Closed = true
+							issuesMap[issue].Closed = true
 						}
 					}
 
@@ -67,14 +53,23 @@ func Issues(github *maintner.GitHub, username string, start, end time.Time) (map
 				if comment.User != nil && comment.User.Login == username {
 					if inScope(comment.Created, start, end) {
 						maybeAddIssue()
-						stats[issue].Comments++
+						issuesMap[issue].Comments++
 					}
 				}
 				return nil
 			})
 		})
+	}); err != nil {
+		return nil, err
+	}
+	var issues []*generic.Issue
+	for _, issue := range issuesMap {
+		issues = append(issues, issue)
+	}
+	sort.Slice(issues, func(i, j int) bool {
+		return issues[i].Link < issues[j].Link
 	})
-	return stats, err
+	return issues, nil
 }
 
 func extractCategory(description string) string {
