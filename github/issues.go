@@ -62,7 +62,7 @@ outer:
 				}
 				// Only mark issues as opened if the user opened them since the specified date.
 				opened := issue.GetUser().GetLogin() == username
-				closed := issue.GetClosedBy() != nil
+				closed := issue.GetClosedBy() != nil || !issue.GetClosedAt().Equal(time.Time{})
 				if issue.IsPullRequest() {
 					status := generic.Unknown
 					if closed {
