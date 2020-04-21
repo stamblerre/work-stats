@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/stamblerre/work-stats/generic"
 	"github.com/stamblerre/work-stats/github"
@@ -16,6 +17,7 @@ import (
 var (
 	username = flag.String("username", "", "GitHub username")
 	email    = flag.String("email", "", "Gerrit email or emails, comma-separated")
+	weekOf   = flag.String("week", "", "an optional date in the week for which to get snippets (format: 2006-01-02)")
 
 	// Optional flags.
 	gerritFlag = flag.Bool("gerrit", true, "collect data on Go issues or changelists")
@@ -37,7 +39,10 @@ func main() {
 	}
 	emails := strings.Split(*email, ",")
 
-	start, end := generic.SnippetTimeRange()
+	start, end, err := generic.InferTimeRange(time.Now(), *weekOf)
+	if err != nil {
+		log.Fatal(err)
+	}
 	log.Printf("Generating weekly snippets for dates %s to %s", start.Format("01-02-2006"), end.Format("01-02-2006"))
 
 	var b strings.Builder
