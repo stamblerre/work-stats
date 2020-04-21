@@ -9,10 +9,16 @@ func SnippetTimeRange() (time.Time, time.Time) {
 	now := time.Now()
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
-	// If this command is running on a Monday, assume that it's for the pevious
+	// If this command is running Mon-Wed, assume that it's for the previous
 	// week and look for the preceding Monday.
-	if start.Weekday() == time.Monday {
+	// TODO(rstambler): This approach may need to be rethought.
+	switch start.Weekday() {
+	case time.Monday:
 		start = start.AddDate(0, 0, -1)
+	case time.Tuesday:
+		start = start.AddDate(0, 0, -2)
+	case time.Wednesday:
+		start = start.AddDate(0, 0, -3)
 	}
 	end := start
 	for start.Weekday() != time.Monday {
