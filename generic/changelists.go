@@ -3,6 +3,7 @@ package generic
 import (
 	"fmt"
 	"sort"
+	"time"
 )
 
 type Changelist struct {
@@ -13,6 +14,7 @@ type Changelist struct {
 	Repo        string
 	Category    string
 	Status      ChangelistStatus
+	MergedAt    time.Time
 }
 
 type ChangelistStatus int

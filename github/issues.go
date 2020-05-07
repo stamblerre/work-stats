@@ -75,6 +75,7 @@ outer:
 						Author:      issue.GetUser().GetLogin(),
 						Number:      issue.GetNumber(),
 						Status:      status,
+						MergedAt:    issue.GetClosedAt(),
 					}
 					if opened {
 						authoredMap[issue.GetHTMLURL()] = gc
