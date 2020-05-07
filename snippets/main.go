@@ -97,7 +97,7 @@ func main() {
 		}
 		var merged, inProgress []*generic.Changelist
 		for _, pr := range authored {
-			if pr.Status == generic.Merged {
+			if pr.Status == generic.Merged && pr.MergedAt.Before(end) {
 				merged = append(merged, pr)
 			} else {
 				inProgress = append(inProgress, pr)
