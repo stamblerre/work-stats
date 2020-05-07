@@ -34,3 +34,13 @@ func InferTimeRange(now time.Time, weekOf string) (start, end time.Time, err err
 	end = start.AddDate(0, 0, 7)
 	return start, end, nil
 }
+
+func IsMergedBefore(cl *Changelist, end time.Time) bool {
+	if cl.Status != Merged {
+		return false
+	}
+	if (cl.MergedAt == time.Time{}) {
+		return true
+	}
+	return cl.MergedAt.Before(end)
+}
