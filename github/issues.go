@@ -35,8 +35,8 @@ func IssuesAndPRs(ctx context.Context, username string, start, end time.Time) (a
 outer:
 	for {
 		var current int
-		for i := 0; i < 10; i++ {
-			result, _, err := client.Search.Issues(ctx, fmt.Sprintf("involves:%v -user:golang updated:%s..%s", username, last.Format(time.RFC3339), end.Format(time.RFC3339)), &github.SearchOptions{
+		for i := 1; i < 11; i++ {
+			result, _, err := client.Search.Issues(ctx, fmt.Sprintf("involves:%v updated:%s..%s", username, last.Format(time.RFC3339), end.Format(time.RFC3339)), &github.SearchOptions{
 				ListOptions: github.ListOptions{
 					Page:    i,
 					PerPage: 100,
@@ -57,7 +57,9 @@ outer:
 				split := strings.SplitN(trimmed, "/", 2)
 				org, repo := split[0], split[1]
 				// golang issues are tracker via the golang package.
-				if org == "golang" {
+				// However, the vscode-go repository currently requires PRs due
+				// to the CI system. A temporary work-around.
+				if org == "golang" && repo != "vscode-go" {
 					continue
 				}
 				// Only mark issues as opened if the user opened them since the specified date.

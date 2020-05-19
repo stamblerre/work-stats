@@ -14,6 +14,11 @@ import (
 	"golang.org/x/build/maintner"
 )
 
+const (
+	gobotID     = 5976
+	gerritbotID = 12446
+)
+
 func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time) (authored, reviewed []*generic.Changelist, err error) {
 	emailset := make(map[string]bool)
 	for _, e := range emails {
@@ -25,8 +30,8 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 	if err != nil {
 		return nil, nil, err
 	}
+	// Collect all CLs authored by the user.
 	if err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
-		// First, collect all CLs authored by the user.
 		err := project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
 			if cl.Owner() == nil || !emailset[cl.Owner().Email()] {
 				return nil
@@ -66,11 +71,16 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 	}); err != nil {
 		return nil, nil, err
 	}
+	// Collect all the CLs reviewed by the user.
 	if err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
 		// We have to do this call separately, since we have to make sure that the owner ID has been set correctly.
 		return project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
 			// If it was the user owns the CL, they cannot be its reviewer.
 			if cl.Owner() != nil && emailset[cl.Owner().Email()] {
+				return nil
+			}
+			// This could be a CL imported as a PR. Skip it and handle it via GitHub.
+			if cl.OwnerID() == gerritbotID || cl.OwnerID() == gobotID {
 				return nil
 			}
 			if cl.Status == "abandoned" {
@@ -144,6 +154,10 @@ func OwnerIDs(gerrit *maintner.Gerrit, emailset map[string]bool) (map[GerritIDKe
 			if cl.OwnerID() == gerritbotID {
 				return nil
 			}
+			// This shouldn't happen, but gobot also has a known ID.
+			if cl.OwnerID() == gobotID {
+				return nil
+			}
 			k := key(cl)
 			if id, ok := ownerIDs[k]; !ok {
 				ownerIDs[k] = cl.OwnerID()
@@ -181,8 +195,6 @@ func personToID(person *maintner.GitPerson) int {
 	}
 	return int(id)
 }
-
-const gerritbotID = 12446
 
 func key(cl *maintner.GerritCL) GerritIDKey {
 	return GerritIDKey{
