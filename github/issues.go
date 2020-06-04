@@ -68,6 +68,19 @@ outer:
 				if issue.IsPullRequest() {
 					status := generic.Unknown
 					if closed {
+						// Check if the PR has been merged. (It may have been
+						// closed without being merged.)
+						merged, _, err := client.PullRequests.IsMerged(ctx, org, repo, issue.GetNumber())
+						if err != nil {
+							return nil, nil, nil, err
+						}
+						// Ignore issues that have been closed without being
+						// merged. This will ignore merged PRs that are
+						// mirrored from Gerrit because those are closed, even
+						// though the CL has been merged.
+						if !merged {
+							continue
+						}
 						status = generic.Merged
 					}
 					gc := &generic.Changelist{
