@@ -47,8 +47,8 @@ $ work-stats --username=bob --email=bob@gmail.com,bob@golang.org --since=2019-01
 
 ### Export data to Google Sheets
 
-This is a bit more involved, but the output will be a formatted Google sheet
-\with different tabs for each category. To use the Google Sheets API from a
+This is a bit more involved, but the output will be a formatted Google sheet 
+with different tabs for each category. To use the Google Sheets API from a
 command-line tool, you will need to create a Google Cloud project with the
 Google Sheets API enabled. The easiest way to do this is by following the link
 on the [Google Sheets API tutorial](https://developers.google.com/sheets/api/quickstart/go).
