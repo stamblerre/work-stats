@@ -5,15 +5,26 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"time"
 )
 
 type Issue struct {
-	Link           string
-	Repo           string
-	Title          string
-	Opened, Closed bool
-	Comments       int
-	Category       string
+	Link                   string
+	Repo                   string
+	Title                  string
+	OpenedBy               string
+	DateOpened, DateClosed time.Time
+	Comments               int
+	Category               string
+	Labels                 []string
+}
+
+func (issue Issue) OpenedByUser(username string) bool {
+	return issue.OpenedBy == username
+}
+
+func (issue Issue) Closed() bool {
+	return !issue.DateClosed.IsZero()
 }
 
 type issueTotal struct {
@@ -36,7 +47,7 @@ func (t1 *issueTotal) add(t2 *issueTotal) {
 	t1.closed += t2.closed
 }
 
-func IssuesToCells(issues []*Issue) [][]string {
+func IssuesToCells(username string, issues []*Issue) [][]string {
 	// First, categorize issues by repository.
 	repos := make(map[string][]*Issue)
 	for _, issue := range issues {
@@ -71,18 +82,19 @@ func IssuesToCells(issues []*Issue) [][]string {
 				issues: len(issues),
 			}
 			for _, issue := range issues {
-				if issue.Opened {
+				opened := issue.OpenedByUser(username)
+				if opened {
 					categoryTotal.opened++
 				}
-				if issue.Closed {
+				if issue.Closed() {
 					categoryTotal.closed++
 				}
 				categoryTotal.comments += issue.Comments
 				cells = append(cells, []string{
 					issue.Link,
 					truncate(issue.Title),
-					strconv.FormatBool(issue.Opened),
-					strconv.FormatBool(issue.Closed),
+					strconv.FormatBool(opened),
+					strconv.FormatBool(issue.Closed()),
 					strconv.FormatInt(int64(issue.Comments), 10),
 				})
 			}

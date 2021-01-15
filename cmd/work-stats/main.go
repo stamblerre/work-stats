@@ -96,12 +96,12 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		issues, err := golang.Issues(corpus.GitHub(), *username, start, end)
+		issues, err := golang.Issues(corpus.GitHub(), "", *username, start, end)
 		if err != nil {
 			log.Fatal(err)
 		}
 		if err := write(ctx, dir, map[string][][]string{
-			"golang-issues": generic.IssuesToCells(issues),
+			"golang-issues": generic.IssuesToCells(*username, issues),
 		}, rowData); err != nil {
 			log.Fatal(err)
 		}
@@ -124,7 +124,7 @@ func main() {
 			log.Fatal(err)
 		}
 		if err := write(ctx, dir, map[string][][]string{
-			"github-issues":       generic.IssuesToCells(issues),
+			"github-issues":       generic.IssuesToCells(*username, issues),
 			"github-prs-authored": generic.AuthoredChangelistsToCells(authored),
 			"github-prs-reviewed": generic.ReviewedChangelistsToCells(reviewed),
 		}, rowData); err != nil {
@@ -179,7 +179,7 @@ func main() {
 	log.Printf("Wrote data to Google Sheet: %s\n", spreadsheet.SpreadsheetUrl)
 }
 
-func write(ctx context.Context, outputDir string, data map[string][][]string, rowData map[string][]*sheets.RowData) error {
+func write(_ context.Context, outputDir string, data map[string][][]string, rowData map[string][]*sheets.RowData) error {
 	// Write output to disk first.
 	var filenames []string
 	for filename, cells := range data {
@@ -215,9 +215,11 @@ func write(ctx context.Context, outputDir string, data map[string][][]string, ro
 					subtotal = row[0] == "Subtotal"
 					subsubtotal = row[0] == ""
 				}
+				cellPtr := new(string)
+				*cellPtr = cell
 				cd := &sheets.CellData{
 					UserEnteredValue: &sheets.ExtendedValue{
-						StringValue: cell,
+						StringValue: cellPtr,
 					},
 					UserEnteredFormat: &sheets.CellFormat{
 						TextFormat: &sheets.TextFormat{

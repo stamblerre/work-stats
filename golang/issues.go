@@ -10,40 +10,60 @@ import (
 	"golang.org/x/build/maintner"
 )
 
-func Issues(github *maintner.GitHub, username string, start, end time.Time) ([]*generic.Issue, error) {
+func Issues(github *maintner.GitHub, repository, username string, start, end time.Time) ([]*generic.Issue, error) {
 	issuesMap := make(map[*maintner.GitHubIssue]*generic.Issue)
 
 	if err := github.ForeachRepo(func(repo *maintner.GitHubRepo) error {
+		if repository != "" && repo.ID().Repo != repository {
+			return nil
+		}
 		return repo.ForeachIssue(func(issue *maintner.GitHubIssue) error {
+			if issue.PullRequest {
+				return nil
+			}
+			if issue.NotExist {
+				return nil
+			}
 			maybeAddIssue := func() {
 				if _, ok := issuesMap[issue]; !ok {
 					r := fmt.Sprintf("%s/%s", repo.ID().Owner, repo.ID().Repo)
+					var labels []string
+					for _, label := range issue.Labels {
+						labels = append(labels, label.Name)
+					}
 					issuesMap[issue] = &generic.Issue{
 						Title:    issue.Title,
 						Repo:     r,
 						Link:     fmt.Sprintf("github.com/%s/issues/%v", r, issue.Number),
 						Category: extractCategory(issue.Title),
+						Labels:   labels,
 					}
 				}
 			}
+			// If there is no username given, add the issue unconditionally.
+			if username == "" {
+				maybeAddIssue()
+			}
 			// Check if the user opened the given issue.
-			if issue.User != nil && issue.User.Login == username {
+			if username == "" || (issue.User != nil && issue.User.Login == username) {
 				if inScope(issue.Created, start, end) {
 					maybeAddIssue()
-					issuesMap[issue].Opened = true
+					issuesMap[issue].OpenedBy = username
+					issuesMap[issue].DateOpened = issue.Created
 				}
 			}
 			// Check if the user closed the issue.
 			if err := issue.ForeachEvent(func(event *maintner.GitHubIssueEvent) error {
-				if event.Actor != nil && event.Actor.Login == username {
+				if username == "" || (event.Actor != nil && event.Actor.Login == username) {
 					if inScope(event.Created, start, end) {
 						switch event.Type {
 						case "closed":
 							maybeAddIssue()
-							issuesMap[issue].Closed = true
+							issuesMap[issue].DateClosed = issue.ClosedAt
+						case "reopened":
+							issuesMap[issue].DateClosed = time.Time{}
 						}
 					}
-
 				}
 				return nil
 			}); err != nil {

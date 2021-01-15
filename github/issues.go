@@ -63,7 +63,7 @@ outer:
 					continue
 				}
 				// Only mark issues as opened if the user opened them since the specified date.
-				opened := issue.GetUser().GetLogin() == username
+				openedBy := issue.GetUser().GetLogin()
 				closed := issue.GetClosedBy() != nil || !issue.GetClosedAt().Equal(time.Time{})
 				if issue.IsPullRequest() {
 					status := generic.Unknown
@@ -92,7 +92,7 @@ outer:
 						Status:      status,
 						MergedAt:    issue.GetClosedAt(),
 					}
-					if opened {
+					if openedBy == username {
 						authoredMap[issue.GetHTMLURL()] = gc
 					} else {
 						reviewedMap[issue.GetHTMLURL()] = gc
@@ -114,12 +114,13 @@ outer:
 					numComments++
 				}
 				issuesMap[issue.GetHTMLURL()] = &generic.Issue{
-					Repo:     fmt.Sprintf("%s/%s", org, repo),
-					Title:    issue.GetTitle(),
-					Link:     issue.GetHTMLURL(),
-					Opened:   opened,
-					Closed:   closed,
-					Comments: numComments,
+					Repo:       fmt.Sprintf("%s/%s", org, repo),
+					Title:      issue.GetTitle(),
+					Link:       issue.GetHTMLURL(),
+					OpenedBy:   openedBy,
+					DateOpened: issue.GetCreatedAt(),
+					DateClosed: issue.GetClosedAt(),
+					Comments:   numComments,
 				}
 			}
 			current += len(result.Issues)

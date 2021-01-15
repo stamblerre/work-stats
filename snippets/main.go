@@ -55,7 +55,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		issues, err := golang.Issues(corpus.GitHub(), *username, start, end)
+		issues, err := golang.Issues(corpus.GitHub(), "", *username, start, end)
 		if err != nil {
 			log.Fatal(err)
 		}
