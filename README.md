@@ -11,14 +11,14 @@ It exports CSV files for the following:
 
 * Go issues opened, closed, and commented on
 * CLs sent to any of the Go repos
-* CLs reviewed in anym of the Go repos
+* CLs reviewed in any of the Go repos
 * GitHub issues opened, closed, and commented on
 * GitHub PRs opened
 * GitHub PRs reviewed
 
 ## Installation
 
-`go get github.com/stamblerre/work-stats/cmd/workstats`
+`go get github.com/stamblerre/work-stats/cmd/work-stats`
 
 ## Run
 

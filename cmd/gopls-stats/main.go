@@ -9,7 +9,7 @@ import (
 
 	"github.com/stamblerre/work-stats/generic"
 	"github.com/stamblerre/work-stats/golang"
-	"github.com/wcharczuk/go-chart"
+	"github.com/wcharczuk/go-chart/v2"
 	"golang.org/x/build/maintner/godata"
 )
 
@@ -98,22 +98,22 @@ func issuesToGraph(filename string, issues []*generic.Issue, start, end time.Tim
 	}
 	graph := chart.Chart{
 		Title:      filename,
-		TitleStyle: chart.StyleShow(),
+		TitleStyle: chart.Shown(),
 		YAxis: chart.YAxis{
 			Name:  "Issues",
-			Style: chart.StyleShow(),
+			Style: chart.Shown(),
 		},
 		XAxis: chart.XAxis{
 			Name:           "Time",
 			ValueFormatter: chart.TimeDateValueFormatter,
-			NameStyle:      chart.StyleShow(),
-			Style:          chart.StyleShow(),
+			NameStyle:      chart.Shown(),
+			Style:          chart.Shown(),
 		},
 		Series: []chart.Series{
 			chart.TimeSeries{
 				XValues: dates,
 				YValues: countSlice,
-				Style:   chart.StyleShow(),
+				Style:   chart.Shown(),
 			},
 		},
 	}
