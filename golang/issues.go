@@ -61,7 +61,9 @@ func Issues(github *maintner.GitHub, repository, username string, start, end tim
 							maybeAddIssue()
 							issuesMap[issue].DateClosed = issue.ClosedAt
 						case "reopened":
-							issuesMap[issue].DateClosed = time.Time{}
+							if _, ok := issuesMap[issue]; ok {
+								issuesMap[issue].DateClosed = time.Time{}
+							}
 						}
 					}
 				}
