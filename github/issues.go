@@ -57,9 +57,7 @@ outer:
 				split := strings.SplitN(trimmed, "/", 2)
 				org, repo := split[0], split[1]
 				// golang issues are tracker via the golang package.
-				// However, the vscode-go repository currently requires PRs due
-				// to the CI system. A temporary work-around.
-				if org == "golang" && repo != "vscode-go" {
+				if org == "golang" {
 					continue
 				}
 				// Only mark issues as opened if the user opened them since the specified date.
