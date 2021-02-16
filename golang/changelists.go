@@ -61,6 +61,7 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 				Author:      cl.Owner().Email(),
 				Description: cl.Subject(),
 				Repo:        project.Project(),
+				Branch:      cl.Branch(),
 				Category:    extractCategory(cl.Subject()),
 				Status:      toStatus(cl.Status),
 				MergedAt:    toMergeTime(cl),
@@ -115,6 +116,7 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 				Author:      cl.Owner().Email(),
 				Description: cl.Subject(),
 				Repo:        project.Project(),
+				Branch:      cl.Branch(),
 				Category:    extractCategory(cl.Subject()),
 				Status:      toStatus(cl.Status),
 			}
