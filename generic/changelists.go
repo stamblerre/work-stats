@@ -34,6 +34,9 @@ type category struct {
 }
 
 func (c category) String() string {
+	if c.branch == "" {
+		return c.desc
+	}
 	return c.branch + ": " + c.desc
 }
 
