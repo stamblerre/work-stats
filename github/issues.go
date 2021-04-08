@@ -62,6 +62,7 @@ outer:
 				}
 				// Only mark issues as opened if the user opened them since the specified date.
 				openedBy := issue.GetUser().GetLogin()
+				closedBy := issue.GetClosedBy().GetLogin()
 				closed := issue.GetClosedBy() != nil || !issue.GetClosedAt().Equal(time.Time{})
 				if issue.IsPullRequest() {
 					status := generic.Unknown
@@ -116,6 +117,7 @@ outer:
 					Title:      issue.GetTitle(),
 					Link:       issue.GetHTMLURL(),
 					OpenedBy:   openedBy,
+					ClosedBy:   closedBy,
 					DateOpened: issue.GetCreatedAt(),
 					DateClosed: issue.GetClosedAt(),
 					Comments:   numComments,
@@ -151,4 +153,14 @@ outer:
 
 func inScope(t, start, end time.Time) bool {
 	return t.After(start) && t.Before(end)
+}
+
+func WasTransferred(ctx context.Context, client *github.Client, owner, repo string, number int32) (bool, error) {
+	issue, _, err := client.Issues.Get(ctx, owner, repo, int(number))
+	if err != nil {
+		return false, err
+	}
+	split := strings.Split(issue.GetRepositoryURL(), "/")
+	actualRepo := split[len(split)-1]
+	return actualRepo != repo, nil
 }

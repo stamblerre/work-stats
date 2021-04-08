@@ -12,15 +12,20 @@ type Issue struct {
 	Link                   string
 	Repo                   string
 	Title                  string
-	OpenedBy               string
+	OpenedBy, ClosedBy     string
 	DateOpened, DateClosed time.Time
 	Comments               int
 	Category               string
 	Labels                 []string
+	Transferred            bool
 }
 
 func (issue Issue) OpenedByUser(username string) bool {
 	return issue.OpenedBy == username
+}
+
+func (issue Issue) ClosedByUser(username string) bool {
+	return issue.ClosedBy == username
 }
 
 func (issue Issue) Closed() bool {
@@ -86,7 +91,8 @@ func IssuesToCells(username string, issues []*Issue) [][]string {
 				if opened {
 					categoryTotal.opened++
 				}
-				if issue.Closed() {
+				closed := issue.ClosedByUser(username)
+				if closed {
 					categoryTotal.closed++
 				}
 				categoryTotal.comments += issue.Comments
@@ -94,7 +100,7 @@ func IssuesToCells(username string, issues []*Issue) [][]string {
 					issue.Link,
 					truncate(issue.Title),
 					strconv.FormatBool(opened),
-					strconv.FormatBool(issue.Closed()),
+					strconv.FormatBool(closed),
 					strconv.FormatInt(int64(issue.Comments), 10),
 				})
 			}

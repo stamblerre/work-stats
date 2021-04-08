@@ -26,15 +26,16 @@ func Issues(github *maintner.GitHub, repository, username string, start, end tim
 			}
 			maybeAddIssue := func() {
 				if _, ok := issuesMap[issue]; !ok {
-					r := fmt.Sprintf("%s/%s", repo.ID().Owner, repo.ID().Repo)
 					var labels []string
 					for _, label := range issue.Labels {
 						labels = append(labels, label.Name)
 					}
+					repository := fmt.Sprintf("%s/%s", repo.ID().Owner, repo.ID().Repo)
+					link := fmt.Sprintf("github.com/%s/issues/%v", repository, issue.Number)
 					issuesMap[issue] = &generic.Issue{
 						Title:    issue.Title,
-						Repo:     r,
-						Link:     fmt.Sprintf("github.com/%s/issues/%v", r, issue.Number),
+						Repo:     repository,
+						Link:     link,
 						Category: extractCategory(issue.Title),
 						Labels:   labels,
 					}
@@ -48,23 +49,22 @@ func Issues(github *maintner.GitHub, repository, username string, start, end tim
 			if username == "" || (issue.User != nil && issue.User.Login == username) {
 				if inScope(issue.Created, start, end) {
 					maybeAddIssue()
+
 					issuesMap[issue].OpenedBy = username
 					issuesMap[issue].DateOpened = issue.Created
 				}
 			}
 			// Check if the user closed the issue.
 			if err := issue.ForeachEvent(func(event *maintner.GitHubIssueEvent) error {
-				if username == "" || (event.Actor != nil && event.Actor.Login == username) {
-					if inScope(event.Created, start, end) {
-						switch event.Type {
-						case "closed":
-							maybeAddIssue()
-							issuesMap[issue].DateClosed = issue.ClosedAt
-						case "reopened":
-							if _, ok := issuesMap[issue]; ok {
-								issuesMap[issue].DateClosed = time.Time{}
-							}
-						}
+				switch event.Type {
+				case "closed":
+					maybeAddIssue()
+					issuesMap[issue].DateClosed = issue.ClosedAt
+					issuesMap[issue].ClosedBy = issue.User.Login
+				case "reopened":
+					if _, ok := issuesMap[issue]; ok {
+						issuesMap[issue].DateClosed = time.Time{}
+						issuesMap[issue].ClosedBy = ""
 					}
 				}
 				return nil
