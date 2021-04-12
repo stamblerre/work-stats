@@ -164,8 +164,12 @@ func OwnerIDs(gerrit *maintner.Gerrit, emailset map[string]bool) (map[GerritIDKe
 			if id, ok := ownerIDs[k]; !ok {
 				ownerIDs[k] = cl.OwnerID()
 			} else if id != cl.OwnerID() {
-				// The CL could be a cherry-pick from internal Gerrit. If so, skip it.
-				if strings.HasPrefix(cl.Footer("Reviewed-on:"), "https://team-review.git.corp.google.com/") {
+				// Skip cherrypicks.
+				if cl.Footer("Reviewed-on:") != "" {
+					return nil
+				}
+				// Skip abandoned CLs.
+				if cl.Status == "abandoned" {
 					return nil
 				}
 				log.Printf("Conflicting owner IDs (have %v, got %v) caused by %v with key %v. Ignoring that CL, please file an issue if you were involved in the CL.", id, cl.OwnerID(), link(cl), k)

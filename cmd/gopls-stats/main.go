@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -119,7 +120,8 @@ func issuesToGraph(filename string, incomingIssues []*generic.Issue, start, end 
 	if err != nil {
 		return err
 	}
-	log.Printf("Average time to close an issue is %s.", parsed)
+	days := int(math.Floor(parsed.Hours() / 24.0))
+	log.Printf("Average time to close an issue is %v.", days)
 	count := map[time.Time]float64{}
 	fr := map[time.Time]float64{}
 	for _, date := range dates {
