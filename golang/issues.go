@@ -56,15 +56,19 @@ func Issues(github *maintner.GitHub, repository, username string, start, end tim
 			}
 			// Check if the user closed the issue.
 			if err := issue.ForeachEvent(func(event *maintner.GitHubIssueEvent) error {
-				switch event.Type {
-				case "closed":
-					maybeAddIssue()
-					issuesMap[issue].DateClosed = issue.ClosedAt
-					issuesMap[issue].ClosedBy = issue.User.Login
-				case "reopened":
-					if _, ok := issuesMap[issue]; ok {
-						issuesMap[issue].DateClosed = time.Time{}
-						issuesMap[issue].ClosedBy = ""
+				if username == "" || (event.Actor != nil && event.Actor.Login == username) {
+					if inScope(event.Created, start, end) {
+						switch event.Type {
+						case "closed":
+							maybeAddIssue()
+							issuesMap[issue].DateClosed = issue.ClosedAt
+							issuesMap[issue].ClosedBy = issue.User.Login
+						case "reopened":
+							if _, ok := issuesMap[issue]; ok {
+								issuesMap[issue].DateClosed = time.Time{}
+								issuesMap[issue].ClosedBy = ""
+							}
+						}
 					}
 				}
 				return nil
