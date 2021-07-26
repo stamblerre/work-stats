@@ -62,7 +62,6 @@ outer:
 				}
 				// Only mark issues as opened if the user opened them since the specified date.
 				openedBy := issue.GetUser().GetLogin()
-				closedBy := issue.GetClosedBy().GetLogin()
 				closed := issue.GetClosedBy() != nil || !issue.GetClosedAt().Equal(time.Time{})
 				if issue.IsPullRequest() {
 					status := generic.Unknown
@@ -82,15 +81,7 @@ outer:
 						}
 						status = generic.Merged
 					}
-					gc := &generic.Changelist{
-						Repo:        fmt.Sprintf("%s/%s", org, repo),
-						Description: issue.GetTitle(),
-						Link:        issue.GetHTMLURL(),
-						Author:      issue.GetUser().GetLogin(),
-						Number:      issue.GetNumber(),
-						Status:      status,
-						MergedAt:    issue.GetClosedAt(),
-					}
+					gc := GitHubToGenericChangelist(issue, org, repo, status)
 					if openedBy == username {
 						authoredMap[issue.GetHTMLURL()] = gc
 					} else {
@@ -112,16 +103,7 @@ outer:
 					}
 					numComments++
 				}
-				issuesMap[issue.GetHTMLURL()] = &generic.Issue{
-					Repo:       fmt.Sprintf("%s/%s", org, repo),
-					Title:      issue.GetTitle(),
-					Link:       issue.GetHTMLURL(),
-					OpenedBy:   openedBy,
-					ClosedBy:   closedBy,
-					DateOpened: issue.GetCreatedAt(),
-					DateClosed: issue.GetClosedAt(),
-					Comments:   numComments,
-				}
+				issuesMap[issue.GetHTMLURL()] = GitHubToGenericIssue(issue, org, repo, numComments)
 			}
 			current += len(result.Issues)
 			if current >= result.GetTotal() {
@@ -163,4 +145,30 @@ func WasTransferred(ctx context.Context, client *github.Client, owner, repo stri
 	split := strings.Split(issue.GetRepositoryURL(), "/")
 	actualRepo := split[len(split)-1]
 	return actualRepo != repo, nil
+}
+
+func GitHubToGenericIssue(issue github.Issue, org, repo string, numComments int) *generic.Issue {
+	return &generic.Issue{
+		Repo:       fmt.Sprintf("%s/%s", org, repo),
+		Title:      issue.GetTitle(),
+		Link:       issue.GetHTMLURL(),
+		OpenedBy:   issue.GetUser().GetLogin(),
+		ClosedBy:   issue.GetClosedBy().GetLogin(),
+		DateOpened: issue.GetCreatedAt(),
+		DateClosed: issue.GetClosedAt(),
+		Comments:   numComments,
+	}
+}
+
+func GitHubToGenericChangelist(issue github.Issue, org, repo string, status generic.ChangelistStatus) *generic.Changelist {
+	return &generic.Changelist{
+		Repo:     fmt.Sprintf("%s/%s", org, repo),
+		Subject:  issue.GetTitle(),
+		Message:  issue.GetBody(),
+		Link:     issue.GetHTMLURL(),
+		Author:   issue.GetUser().GetLogin(),
+		Number:   issue.GetNumber(),
+		Status:   status,
+		MergedAt: issue.GetClosedAt(),
+	}
 }

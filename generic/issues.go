@@ -15,9 +15,12 @@ type Issue struct {
 	OpenedBy, ClosedBy     string
 	DateOpened, DateClosed time.Time
 	Comments               int
-	Category               string
 	Labels                 []string
 	Transferred            bool
+}
+
+func (issue Issue) Category() string {
+	return extractCategory(issue.Title)
 }
 
 func (issue Issue) OpenedByUser(username string) bool {
@@ -69,7 +72,7 @@ func IssuesToCells(username string, issues []*Issue) [][]string {
 	for _, repo := range sortedRepos {
 		categories := make(map[string][]*Issue)
 		for _, issue := range repos[repo] {
-			categories[issue.Category] = append(categories[issue.Category], issue)
+			categories[issue.Category()] = append(categories[issue.Category()], issue)
 		}
 		var sortedCategories []string
 		for category := range categories {

@@ -39,7 +39,7 @@ func IsMergedBefore(cl *Changelist, end time.Time) bool {
 	if cl.Status != Merged {
 		return false
 	}
-	if (cl.MergedAt == time.Time{}) {
+	if (cl.MergedAt.Equal(time.Time{})) {
 		return true
 	}
 	return cl.MergedAt.Before(end)

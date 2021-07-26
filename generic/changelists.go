@@ -3,19 +3,24 @@ package generic
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
 type Changelist struct {
-	Number      int
-	Link        string
-	Description string
-	Branch      string
-	Author      string
-	Repo        string
-	Category    string
-	Status      ChangelistStatus
-	MergedAt    time.Time
+	Number   int
+	Link     string
+	Subject  string
+	Message  string
+	Branch   string
+	Author   string
+	Repo     string
+	Status   ChangelistStatus
+	MergedAt time.Time
+}
+
+func (cl *Changelist) Category() string {
+	return extractCategory(cl.Subject)
 }
 
 type ChangelistStatus int
@@ -58,7 +63,7 @@ func AuthoredChangelistsToCells(cls []*Changelist) [][]string {
 		for _, cl := range cls {
 			c := category{
 				branch: cl.Branch,
-				desc:   cl.Category,
+				desc:   cl.Category(),
 			}
 			categories[c] = append(categories[c], cl)
 		}
@@ -78,7 +83,7 @@ func AuthoredChangelistsToCells(cls []*Changelist) [][]string {
 				return cls[i].Link < cls[j].Link
 			})
 			for _, cl := range cls {
-				cells = append(cells, []string{cl.Link, truncate(cl.Description)})
+				cells = append(cells, []string{cl.Link, truncate(cl.Subject)})
 			}
 			// Only add subtotals for categories only if they are legitimate.
 			if len(sortedCategories) > 1 {
@@ -120,7 +125,7 @@ func ReviewedChangelistsToCells(cls []*Changelist) [][]string {
 				return cls[i].Link < cls[j].Link
 			})
 			for _, cl := range cls {
-				cells = append(cells, []string{cl.Link, truncate(cl.Description)})
+				cells = append(cells, []string{cl.Link, truncate(cl.Subject)})
 			}
 			cells = append(cells, []string{"", author, fmt.Sprint(len(cls))})
 		}
@@ -137,4 +142,14 @@ func truncate(x string) string {
 		return x[:80]
 	}
 	return x
+}
+
+func extractCategory(description string) string {
+	split := strings.Split(description, ":")
+	if len(split) > 1 {
+		if !strings.Contains(split[0], " ") {
+			return split[0]
+		}
+	}
+	return ""
 }

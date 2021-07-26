@@ -3,7 +3,6 @@ package golang
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/stamblerre/work-stats/generic"
@@ -33,11 +32,10 @@ func Issues(github *maintner.GitHub, repository, username string, start, end tim
 					repository := fmt.Sprintf("%s/%s", repo.ID().Owner, repo.ID().Repo)
 					link := fmt.Sprintf("github.com/%s/issues/%v", repository, issue.Number)
 					issuesMap[issue] = &generic.Issue{
-						Title:    issue.Title,
-						Repo:     repository,
-						Link:     link,
-						Category: extractCategory(issue.Title),
-						Labels:   labels,
+						Title:  issue.Title,
+						Repo:   repository,
+						Link:   link,
+						Labels: labels,
 					}
 				}
 			}
@@ -96,14 +94,4 @@ func Issues(github *maintner.GitHub, repository, username string, start, end tim
 		return issues[i].Link < issues[j].Link
 	})
 	return issues, nil
-}
-
-func extractCategory(description string) string {
-	split := strings.Split(description, ":")
-	if len(split) > 1 {
-		if !strings.Contains(split[0], " ") {
-			return split[0]
-		}
-	}
-	return ""
 }

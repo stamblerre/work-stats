@@ -54,18 +54,8 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 			if !match {
 				return nil
 			}
-			l := link(cl)
-			authoredMap[l] = &generic.Changelist{
-				Number:      int(cl.Number),
-				Link:        l,
-				Author:      cl.Owner().Email(),
-				Description: cl.Subject(),
-				Repo:        project.Project(),
-				Branch:      cl.Branch(),
-				Category:    extractCategory(cl.Subject()),
-				Status:      toStatus(cl.Status),
-				MergedAt:    toMergeTime(cl),
-			}
+			genericCL := GerritToGenericCL(cl)
+			authoredMap[genericCL.Link] = genericCL
 			return nil
 		})
 		return err
@@ -109,17 +99,8 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 			if !match {
 				return nil
 			}
-			l := link(cl)
-			reviewedMap[l] = &generic.Changelist{
-				Number:      int(cl.Number),
-				Link:        l,
-				Author:      cl.Owner().Email(),
-				Description: cl.Subject(),
-				Repo:        project.Project(),
-				Branch:      cl.Branch(),
-				Category:    extractCategory(cl.Subject()),
-				Status:      toStatus(cl.Status),
-			}
+			genericCL := GerritToGenericCL(cl)
+			reviewedMap[genericCL.Link] = genericCL
 			return nil
 		})
 	}); err != nil {
@@ -207,6 +188,20 @@ func key(cl *maintner.GerritCL) GerritIDKey {
 		project: cl.Project.Project(),
 		branch:  cl.Branch(),
 		status:  cl.Status,
+	}
+}
+
+func GerritToGenericCL(cl *maintner.GerritCL) *generic.Changelist {
+	return &generic.Changelist{
+		Number:   int(cl.Number),
+		Link:     link(cl),
+		Author:   cl.Owner().Email(),
+		Subject:  cl.Subject(),
+		Message:  cl.Commit.Msg,
+		Repo:     cl.Project.Project(),
+		Branch:   cl.Branch(),
+		Status:   toStatus(cl.Status),
+		MergedAt: toMergeTime(cl),
 	}
 }
 
