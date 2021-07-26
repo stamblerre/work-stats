@@ -93,6 +93,7 @@ func GerritToGenericIssue(issue *maintner.GitHubIssue, repo *maintner.GitHubRepo
 	repository := fmt.Sprintf("%s/%s", repo.ID().Owner, repo.ID().Repo)
 	link := fmt.Sprintf("github.com/%s/issues/%v", repository, issue.Number)
 	return &generic.Issue{
+		Number:    int(issue.Number),
 		Title:     issue.Title,
 		Repo:      repository,
 		Link:      link,

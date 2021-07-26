@@ -9,6 +9,7 @@ import (
 )
 
 type Issue struct {
+	Number                 int
 	Link                   string
 	Repo                   string
 	Title                  string

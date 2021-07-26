@@ -153,6 +153,7 @@ func GitHubToGenericIssue(issue github.Issue, org, repo string, numComments int)
 		milestone = *issue.GetMilestone().Title
 	}
 	return &generic.Issue{
+		Number:     issue.GetNumber(),
 		Repo:       fmt.Sprintf("%s/%s", org, repo),
 		Title:      issue.GetTitle(),
 		Link:       issue.GetHTMLURL(),

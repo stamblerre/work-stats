@@ -147,6 +147,9 @@ func OwnerIDs(gerrit *maintner.Gerrit, emailset map[string]bool) (map[GerritIDKe
 			}
 			k := key(cl)
 			if id, ok := ownerIDs[k]; !ok {
+				if cl.OwnerID() == 5190 {
+					log.Printf("OWNER ID: %v KEY: %v CL: %v", id, k, cl.Number)
+				}
 				ownerIDs[k] = cl.OwnerID()
 			} else if id != cl.OwnerID() {
 				// Skip cherrypicks.
