@@ -195,6 +195,10 @@ func GerritToGenericCL(cl *maintner.GerritCL) *generic.Changelist {
 	var issues []*generic.Issue
 	for _, ref := range cl.GitHubIssueRefs {
 		issue := ref.Repo.Issue(ref.Number)
+		// Skip PRs.
+		if issue.PullRequest {
+			continue
+		}
 		issues = append(issues, GerritToGenericIssue(issue, ref.Repo))
 	}
 	var comments []string
