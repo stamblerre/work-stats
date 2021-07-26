@@ -145,17 +145,14 @@ func OwnerIDs(gerrit *maintner.Gerrit, emailset map[string]bool) (map[GerritIDKe
 			if cl.Status == "abandoned" {
 				return nil
 			}
+			// Skip cherrypicks.
+			if cl.Footer("Reviewed-on:") != "" {
+				return nil
+			}
 			k := key(cl)
 			if id, ok := ownerIDs[k]; !ok {
-				if cl.OwnerID() == 5190 {
-					log.Printf("OWNER ID: %v KEY: %v CL: %v", id, k, cl.Number)
-				}
 				ownerIDs[k] = cl.OwnerID()
 			} else if id != cl.OwnerID() {
-				// Skip cherrypicks.
-				if cl.Footer("Reviewed-on:") != "" {
-					return nil
-				}
 				log.Printf("Conflicting owner IDs (have %v, got %v) caused by %v with key %v. Ignoring that CL, please file an issue if you were involved in the CL.", id, cl.OwnerID(), link(cl), k)
 			}
 			return nil

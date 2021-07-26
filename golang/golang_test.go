@@ -30,7 +30,6 @@ func TestOwnerIds(t *testing.T) {
 			email: "rstambler@golang.org",
 			ids: map[int]bool{
 				16140: true,
-				6005:  true,
 			},
 		},
 	} {
