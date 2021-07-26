@@ -12,6 +12,7 @@ type Changelist struct {
 	Link             string
 	Subject          string
 	Message          string
+	Comments         []string
 	Branch           string
 	Author           string
 	Repo             string

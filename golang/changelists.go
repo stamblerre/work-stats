@@ -197,12 +197,17 @@ func GerritToGenericCL(cl *maintner.GerritCL) *generic.Changelist {
 		issue := ref.Repo.Issue(ref.Number)
 		issues = append(issues, GerritToGenericIssue(issue, ref.Repo))
 	}
+	var comments []string
+	for _, msg := range cl.Messages {
+		comments = append(comments, msg.Message)
+	}
 	return &generic.Changelist{
 		Number:           int(cl.Number),
 		Link:             link(cl),
 		Author:           cl.Owner().Email(),
 		Subject:          cl.Subject(),
 		Message:          cl.Commit.Msg,
+		Comments:         comments,
 		Repo:             cl.Project.Project(),
 		Branch:           cl.Branch(),
 		Status:           toStatus(cl.Status),

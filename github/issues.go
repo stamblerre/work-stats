@@ -165,15 +165,15 @@ func GitHubToGenericIssue(issue github.Issue, org, repo string, numComments int)
 	}
 }
 
-func GitHubToGenericChangelist(issue github.Issue, org, repo string, status generic.ChangelistStatus) *generic.Changelist {
+func GitHubToGenericChangelist(pr github.Issue, org, repo string, status generic.ChangelistStatus) *generic.Changelist {
 	return &generic.Changelist{
 		Repo:     fmt.Sprintf("%s/%s", org, repo),
-		Subject:  issue.GetTitle(),
-		Message:  issue.GetBody(),
-		Link:     issue.GetHTMLURL(),
-		Author:   issue.GetUser().GetLogin(),
-		Number:   issue.GetNumber(),
+		Subject:  pr.GetTitle(),
+		Message:  pr.GetBody(),
+		Link:     pr.GetHTMLURL(),
+		Author:   pr.GetUser().GetLogin(),
+		Number:   pr.GetNumber(),
 		Status:   status,
-		MergedAt: issue.GetClosedAt(),
+		MergedAt: pr.GetClosedAt(),
 	}
 }
