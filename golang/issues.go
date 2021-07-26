@@ -25,18 +25,7 @@ func Issues(github *maintner.GitHub, repository, username string, start, end tim
 			}
 			maybeAddIssue := func() {
 				if _, ok := issuesMap[issue]; !ok {
-					var labels []string
-					for _, label := range issue.Labels {
-						labels = append(labels, label.Name)
-					}
-					repository := fmt.Sprintf("%s/%s", repo.ID().Owner, repo.ID().Repo)
-					link := fmt.Sprintf("github.com/%s/issues/%v", repository, issue.Number)
-					issuesMap[issue] = &generic.Issue{
-						Title:  issue.Title,
-						Repo:   repository,
-						Link:   link,
-						Labels: labels,
-					}
+					issuesMap[issue] = GerritToGenericIssue(issue, repo)
 				}
 			}
 			// If there is no username given, add the issue unconditionally.
@@ -94,4 +83,20 @@ func Issues(github *maintner.GitHub, repository, username string, start, end tim
 		return issues[i].Link < issues[j].Link
 	})
 	return issues, nil
+}
+
+func GerritToGenericIssue(issue *maintner.GitHubIssue, repo *maintner.GitHubRepo) *generic.Issue {
+	var labels []string
+	for _, label := range issue.Labels {
+		labels = append(labels, label.Name)
+	}
+	repository := fmt.Sprintf("%s/%s", repo.ID().Owner, repo.ID().Repo)
+	link := fmt.Sprintf("github.com/%s/issues/%v", repository, issue.Number)
+	return &generic.Issue{
+		Title:     issue.Title,
+		Repo:      repository,
+		Link:      link,
+		Labels:    labels,
+		Milestone: issue.Milestone.Title,
+	}
 }

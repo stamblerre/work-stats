@@ -148,6 +148,10 @@ func WasTransferred(ctx context.Context, client *github.Client, owner, repo stri
 }
 
 func GitHubToGenericIssue(issue github.Issue, org, repo string, numComments int) *generic.Issue {
+	var milestone string
+	if issue.GetMilestone() != nil {
+		milestone = *issue.GetMilestone().Title
+	}
 	return &generic.Issue{
 		Repo:       fmt.Sprintf("%s/%s", org, repo),
 		Title:      issue.GetTitle(),
@@ -157,6 +161,7 @@ func GitHubToGenericIssue(issue github.Issue, org, repo string, numComments int)
 		DateOpened: issue.GetCreatedAt(),
 		DateClosed: issue.GetClosedAt(),
 		Comments:   numComments,
+		Milestone:  milestone,
 	}
 }
 

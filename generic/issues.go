@@ -17,6 +17,7 @@ type Issue struct {
 	Comments               int
 	Labels                 []string
 	Transferred            bool
+	Milestone              string
 }
 
 func (issue Issue) Category() string {

@@ -8,15 +8,16 @@ import (
 )
 
 type Changelist struct {
-	Number   int
-	Link     string
-	Subject  string
-	Message  string
-	Branch   string
-	Author   string
-	Repo     string
-	Status   ChangelistStatus
-	MergedAt time.Time
+	Number           int
+	Link             string
+	Subject          string
+	Message          string
+	Branch           string
+	Author           string
+	Repo             string
+	Status           ChangelistStatus
+	MergedAt         time.Time
+	AssociatedIssues []*Issue
 }
 
 func (cl *Changelist) Category() string {

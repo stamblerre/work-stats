@@ -192,16 +192,22 @@ func key(cl *maintner.GerritCL) GerritIDKey {
 }
 
 func GerritToGenericCL(cl *maintner.GerritCL) *generic.Changelist {
+	var issues []*generic.Issue
+	for _, ref := range cl.GitHubIssueRefs {
+		issue := ref.Repo.Issue(ref.Number)
+		issues = append(issues, GerritToGenericIssue(issue, ref.Repo))
+	}
 	return &generic.Changelist{
-		Number:   int(cl.Number),
-		Link:     link(cl),
-		Author:   cl.Owner().Email(),
-		Subject:  cl.Subject(),
-		Message:  cl.Commit.Msg,
-		Repo:     cl.Project.Project(),
-		Branch:   cl.Branch(),
-		Status:   toStatus(cl.Status),
-		MergedAt: toMergeTime(cl),
+		Number:           int(cl.Number),
+		Link:             link(cl),
+		Author:           cl.Owner().Email(),
+		Subject:          cl.Subject(),
+		Message:          cl.Commit.Msg,
+		Repo:             cl.Project.Project(),
+		Branch:           cl.Branch(),
+		Status:           toStatus(cl.Status),
+		MergedAt:         toMergeTime(cl),
+		AssociatedIssues: issues,
 	}
 }
 
