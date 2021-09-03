@@ -198,6 +198,7 @@ func GerritToGenericCL(cl *maintner.GerritCL) *generic.Changelist {
 		issue := ref.Repo.Issue(ref.Number)
 		if issue == nil {
 			fmt.Printf("no issue for https://github.com/%s/issues/%v\n", ref.Repo.ID(), ref.Number)
+			continue
 		}
 		// Skip PRs.
 		if issue.PullRequest {
