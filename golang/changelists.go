@@ -196,6 +196,9 @@ func GerritToGenericCL(cl *maintner.GerritCL) *generic.Changelist {
 	var issues []*generic.Issue
 	for _, ref := range cl.GitHubIssueRefs {
 		issue := ref.Repo.Issue(ref.Number)
+		if issue == nil {
+			panic(fmt.Sprintf("no issue for %s#%v", ref.Repo.ID(), ref.Number))
+		}
 		// Skip PRs.
 		if issue.PullRequest {
 			continue
