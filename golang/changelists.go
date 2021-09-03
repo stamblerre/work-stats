@@ -33,9 +33,6 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 	// Collect all CLs authored by the user.
 	if err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
 		err := project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
-			if project.Project() != "vscode-go" {
-				return nil
-			}
 			if cl.Owner() == nil || !emailset[cl.Owner().Email()] {
 				return nil
 			}
