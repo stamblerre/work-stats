@@ -331,9 +331,13 @@ func createSheet(ctx context.Context, srv *sheets.Service, start time.Time, rowD
 			Data: []*sheets.GridData{{RowData: data}},
 		})
 	}
+	name := *username
+	if name == "" {
+		name = strings.Split(*email, "@")[0]
+	}
 	spreadsheet := &sheets.Spreadsheet{
 		Properties: &sheets.SpreadsheetProperties{
-			Title: fmt.Sprintf("Work Stats (as of %s)", start.Format("01-02-2006")),
+			Title: fmt.Sprintf("%s (as of %s)", name, start.Format("01-02-2006")),
 		},
 		Sheets: newSheets,
 	}
