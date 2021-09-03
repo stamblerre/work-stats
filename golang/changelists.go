@@ -33,6 +33,9 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 	// Collect all CLs authored by the user.
 	if err := gerrit.ForeachProjectUnsorted(func(project *maintner.GerritProject) error {
 		err := project.ForeachCLUnsorted(func(cl *maintner.GerritCL) error {
+			if project.Project() != "vscode-go" {
+				return nil
+			}
 			if cl.Owner() == nil || !emailset[cl.Owner().Email()] {
 				return nil
 			}
@@ -40,6 +43,7 @@ func Changelists(gerrit *maintner.Gerrit, emails []string, start, end time.Time)
 				return nil
 			}
 			key := key(cl)
+
 			var match bool
 			for _, meta := range cl.Metas {
 				if !inScope(cl.Commit.CommitTime, start, end) {
@@ -146,7 +150,7 @@ func OwnerIDs(gerrit *maintner.Gerrit, emailset map[string]bool) (map[GerritIDKe
 				return nil
 			}
 			// Skip cherrypicks.
-			if cl.Footer("Reviewed-on:") != "" {
+			if cl.Footer("Reviewed-on:") != "https://"+link(cl) {
 				return nil
 			}
 			k := key(cl)
