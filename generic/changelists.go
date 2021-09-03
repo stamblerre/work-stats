@@ -48,6 +48,9 @@ func (c category) String() string {
 }
 
 func AuthoredChangelistsToCells(cls []*Changelist) [][]string {
+	if len(cls) == 0 {
+		return nil
+	}
 	repos := make(map[string][]*Changelist)
 	for _, cl := range cls {
 		repos[cl.Repo] = append(repos[cl.Repo], cl)

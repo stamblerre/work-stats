@@ -183,6 +183,9 @@ func write(_ context.Context, outputDir string, data map[string][][]string, rowD
 	// Write output to disk first.
 	var filenames []string
 	for filename, cells := range data {
+		if len(cells) == 0 {
+			continue
+		}
 		fullpath := filepath.Join(outputDir, fmt.Sprintf("%s.csv", filename))
 		file, err := os.Create(fullpath)
 		if err != nil {
@@ -205,6 +208,9 @@ func write(_ context.Context, outputDir string, data map[string][][]string, rowD
 	}
 	// Add a new sheet and write output to it.
 	for title, cells := range data {
+		if len(cells) == 0 {
+			continue
+		}
 		var rd []*sheets.RowData
 		for i, row := range cells {
 			var values []*sheets.CellData
