@@ -22,8 +22,9 @@ import (
 )
 
 var (
-	since = flag.String("since", "", "date from which to collect data")
-	repos = flag.String("repos", "", "repositories to process, comma separated")
+	since          = flag.String("since", "", "date from which to collect data")
+	repos          = flag.String("repos", "", "repositories to process, comma separated")
+	checkTransfers = flag.Bool("check-transfers", false, "true if we care about whether or not issues were transferred")
 )
 
 func main() {
@@ -88,21 +89,22 @@ func issuesToGraph(filename string, incomingIssues []*generic.Issue, start, end 
 		dates = append(dates, time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC))
 		t = t.Add(time.Hour * 24)
 	}
-	transfers := map[*generic.Issue]struct{}{}
 	var issues []*generic.Issue
 	for _, issue := range incomingIssues {
-		owner, repo := strings.Split(issue.Repo, "/")[0], strings.Split(issue.Repo, "/")[1]
-		split := strings.Split(issue.Link, "/")
-		number, err := strconv.Atoi(split[len(split)-1])
-		if err != nil {
-			return err
-		}
-		transferred, err := wasTransferred(context.TODO(), owner, repo, int32(number))
-		if err != nil {
-			return err
-		}
-		if transferred {
-			continue
+		if *checkTransfers {
+			owner, repo := strings.Split(issue.Repo, "/")[0], strings.Split(issue.Repo, "/")[1]
+			split := strings.Split(issue.Link, "/")
+			number, err := strconv.Atoi(split[len(split)-1])
+			if err != nil {
+				return err
+			}
+			transferred, err := wasTransferred(context.TODO(), owner, repo, int32(number))
+			if err != nil {
+				return err
+			}
+			if transferred {
+				continue
+			}
 		}
 		issues = append(issues, issue)
 	}
@@ -121,14 +123,11 @@ func issuesToGraph(filename string, incomingIssues []*generic.Issue, start, end 
 		return err
 	}
 	days := int(math.Floor(parsed.Hours() / 24.0))
-	log.Printf("Average time to close an issue is %v.", days)
+	log.Printf("Average time to close an issue is %v days.", days)
 	count := map[time.Time]float64{}
 	fr := map[time.Time]float64{}
 	for _, date := range dates {
 		for _, issue := range issues {
-			if _, ok := transfers[issue]; ok {
-				continue
-			}
 			opened := time.Date(issue.DateOpened.Year(), issue.DateOpened.Month(), issue.DateOpened.Day(), 0, 0, 0, 0, time.UTC)
 			closed := time.Date(issue.DateClosed.Year(), issue.DateClosed.Month(), issue.DateClosed.Day(), 0, 0, 0, 0, time.UTC)
 			if !inScope(date, opened, closed) {
