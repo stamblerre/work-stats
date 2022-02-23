@@ -216,9 +216,6 @@ func write(_ context.Context, outputDir string, data map[string][]*generic.Row, 
 			var values []*sheets.CellData
 			for _, cell := range row.Cells {
 				cd := &sheets.CellData{
-					UserEnteredValue: &sheets.ExtendedValue{
-						StringValue: newStrPtr(cell.Text),
-					},
 					UserEnteredFormat: &sheets.CellFormat{
 						TextFormat: &sheets.TextFormat{
 							Bold: row.BoldText,
@@ -234,7 +231,13 @@ func write(_ context.Context, outputDir string, data map[string][]*generic.Row, 
 					}
 				}
 				if cell.Hyperlink != "" {
-					cd.UserEnteredValue.FormulaValue = newStrPtr(cell.HyperlinkFormula())
+					cd.UserEnteredValue = &sheets.ExtendedValue{
+						FormulaValue: newStrPtr(cell.HyperlinkFormula()),
+					}
+				} else {
+					cd.UserEnteredValue = &sheets.ExtendedValue{
+						StringValue: newStrPtr(cell.Text),
+					}
 				}
 				values = append(values, cd)
 			}
