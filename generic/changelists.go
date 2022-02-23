@@ -105,7 +105,7 @@ func AuthoredChangelistsToCells(cls []*Changelist) []*Row {
 	sort.Strings(sortedRepos)
 
 	sheet := []*Row{{
-		Cells:    []string{"CL", "Description", "Status"},
+		Cells:    []string{"CL", "Description"},
 		BoldText: true,
 	}}
 	for _, repo := range sortedRepos {
@@ -145,24 +145,12 @@ func AuthoredChangelistsToCells(cls []*Changelist) []*Row {
 			}
 			// Only add subtotals for categories only if they are legitimate.
 			if len(sortedCategories) > 1 {
-				sheet = append(sheet, &Row{
-					Cells:    []string{"", category.String(), fmt.Sprint(len(cls))},
-					Color:    subsubtotalGray(),
-					BoldText: true,
-				})
+				sheet = append(sheet, totalRow("", category.String(), fmt.Sprint(len(cls))))
 			}
 		}
-		sheet = append(sheet, &Row{
-			Cells:    []string{"Subtotal", repo, fmt.Sprint(len(repos[repo]))},
-			Color:    subtotalGray(),
-			BoldText: true,
-		})
+		sheet = append(sheet, totalRow("Subtotal", repo, fmt.Sprint(len(repos[repo]))))
 	}
-	sheet = append(sheet, &Row{
-		Cells:    []string{"Total", "", fmt.Sprintf("%v", len(cls))},
-		Color:    totalGray(),
-		BoldText: true,
-	})
+	sheet = append(sheet, totalRow("Total", "", fmt.Sprintf("%v", len(cls))))
 	return sheet
 }
 
@@ -201,25 +189,13 @@ func ReviewedChangelistsToCells(cls []*Changelist) []*Row {
 			for _, cl := range cls {
 				cells = append(cells, &Row{Cells: []string{cl.Link, truncate(cl.Subject), ""}})
 			}
-			cells = append(cells, &Row{
-				Cells:    []string{"", author, fmt.Sprint(len(cls))},
-				Color:    subsubtotalGray(),
-				BoldText: true,
-			})
+			cells = append(cells, totalRow("", author, fmt.Sprint(len(cls))))
 		}
 		if len(repos) > 1 {
-			cells = append(cells, &Row{
-				Cells:    []string{"Subtotal", repo, fmt.Sprint(len(repos[repo]))},
-				Color:    subtotalGray(),
-				BoldText: true,
-			})
+			cells = append(cells, totalRow("Subtotal", repo, fmt.Sprint(len(repos[repo]))))
 		}
 	}
-	cells = append(cells, &Row{
-		Cells:    []string{"Total", "", fmt.Sprint(len(cls))},
-		Color:    totalGray(),
-		BoldText: true,
-	})
+	cells = append(cells, totalRow("Total", "", fmt.Sprint(len(cls))))
 	return cells
 }
 

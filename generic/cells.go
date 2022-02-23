@@ -1,13 +1,43 @@
 package generic
 
 import (
+	"fmt"
 	"image/color"
+	"strings"
 )
 
 type Row struct {
 	Cells    []string
 	Color    color.Color
 	BoldText bool
+}
+
+func totalRow(cells ...string) *Row {
+	if len(cells) < 1 {
+		panic("empty cells added to sheet")
+	}
+	switch strings.ToLower(cells[0]) {
+	case "total":
+		return &Row{
+			Cells:    cells,
+			Color:    totalGray(),
+			BoldText: true,
+		}
+	case "subtotal":
+		return &Row{
+			Cells:    cells,
+			Color:    subtotalGray(),
+			BoldText: true,
+		}
+	case "":
+		return &Row{
+			Cells:    cells,
+			Color:    subsubtotalGray(),
+			BoldText: true,
+		}
+	default:
+		panic(fmt.Sprintf("unexpected row type: %s", cells[0]))
+	}
 }
 
 func paleYellow() color.Color {
