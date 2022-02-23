@@ -41,7 +41,10 @@ func (cl *Changelist) Category() string {
 	var popularDir string
 	var popularCount int
 	for dir, count := range directories {
-		if count > popularCount && len(dir) > len(popularDir) {
+		if count < popularCount {
+			continue
+		}
+		if count > popularCount || len(dir) > len(popularDir) {
 			popularCount = count
 			popularDir = dir
 		}
