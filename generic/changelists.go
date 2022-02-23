@@ -58,7 +58,7 @@ func (cl *Changelist) Category() string {
 	directories := map[string]int{}
 	for _, filename := range cl.AffectedFiles {
 		dir := filepath.Dir(filename)
-		for dir != "" && dir != "." {
+		for dir != filepath.Dir(dir) {
 			directories[dir]++
 			dir = filepath.Dir(dir)
 		}
