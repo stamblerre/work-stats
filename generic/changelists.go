@@ -105,7 +105,10 @@ func AuthoredChangelistsToCells(cls []*Changelist) []*Row {
 	sort.Strings(sortedRepos)
 
 	sheet := []*Row{{
-		Cells:    []string{"CL", "Description"},
+		Cells: []*Cell{
+			{text: "CL"},
+			{text: "Description"},
+		},
 		BoldText: true,
 	}}
 	for _, repo := range sortedRepos {
@@ -139,7 +142,11 @@ func AuthoredChangelistsToCells(cls []*Changelist) []*Row {
 					yellow = paleYellow()
 				}
 				sheet = append(sheet, &Row{
-					Cells: []string{cl.Link, truncate(cl.Subject), ""},
+					Cells: []*Cell{
+						{text: cl.Link, hyperlink: cl.Link},
+						{text: truncate(cl.Subject)},
+						{text: ""},
+					},
 					Color: yellow,
 				})
 			}
@@ -169,7 +176,10 @@ func ReviewedChangelistsToCells(cls []*Changelist) []*Row {
 	sort.Strings(sortedRepos)
 
 	cells := []*Row{{
-		Cells:    []string{"CL", "Description"},
+		Cells: []*Cell{
+			{text: "CL"},
+			{text: "Description"},
+		},
 		BoldText: true,
 	}}
 	for _, repo := range sortedRepos {
@@ -190,7 +200,11 @@ func ReviewedChangelistsToCells(cls []*Changelist) []*Row {
 			})
 
 			for _, cl := range cls {
-				cells = append(cells, &Row{Cells: []string{cl.Link, truncate(cl.Subject), ""}})
+				cells = append(cells, &Row{Cells: []*Cell{
+					{text: cl.Link, hyperlink: cl.Link},
+					{text: truncate(cl.Subject)},
+					{text: ""},
+				}})
 			}
 			cells = append(cells, totalRow("", author, fmt.Sprint(len(cls))))
 		}

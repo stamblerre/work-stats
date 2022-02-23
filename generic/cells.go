@@ -7,16 +7,33 @@ import (
 )
 
 type Row struct {
-	Cells    []string
+	Cells    []*Cell
 	Color    color.Color
 	BoldText bool
 }
 
-func totalRow(cells ...string) *Row {
-	if len(cells) < 1 {
+type Cell struct {
+	Text      string
+	HyperLink string
+}
+
+func (r *Row) ToCells() []string {
+	var data []string
+	for _, cell := range r.Cells {
+		data = append(data, cell.Text)
+	}
+	return data
+}
+
+func totalRow(values ...string) *Row {
+	if len(values) < 1 {
 		panic("empty cells added to sheet")
 	}
-	switch strings.ToLower(cells[0]) {
+	var cells []*Cell
+	for _, text := range values {
+		cells = append(cells, &Cell{Text: text})
+	}
+	switch strings.ToLower(cells[0].Text) {
 	case "total":
 		return &Row{
 			Cells:    cells,

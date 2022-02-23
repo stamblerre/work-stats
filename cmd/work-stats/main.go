@@ -197,7 +197,7 @@ func write(_ context.Context, outputDir string, data map[string][]*generic.Row, 
 		defer writer.Flush()
 
 		for _, row := range cells {
-			if err := writer.Write(row.Cells); err != nil {
+			if err := writer.Write(row.ToCells()); err != nil {
 				return err
 			}
 		}
@@ -215,11 +215,9 @@ func write(_ context.Context, outputDir string, data map[string][]*generic.Row, 
 		for _, row := range cells {
 			var values []*sheets.CellData
 			for _, cell := range row.Cells {
-				cellPtr := new(string)
-				*cellPtr = cell
 				cd := &sheets.CellData{
 					UserEnteredValue: &sheets.ExtendedValue{
-						StringValue: cellPtr,
+						StringValue: newStrPtr(cell.Text),
 					},
 					UserEnteredFormat: &sheets.CellFormat{
 						TextFormat: &sheets.TextFormat{
@@ -235,6 +233,9 @@ func write(_ context.Context, outputDir string, data map[string][]*generic.Row, 
 						Red:   float64(r) / 255.0,
 					}
 				}
+				if cell.HyperLink != "" {
+					cd.UserEnteredValue.FormulaValue = newStrPtr(fmt.Sprintf("HYPERLINK=%s", cell.HyperLink))
+				}
 				values = append(values, cd)
 			}
 			rd = append(rd, &sheets.RowData{
@@ -244,6 +245,12 @@ func write(_ context.Context, outputDir string, data map[string][]*generic.Row, 
 		rowData[title] = rd
 	}
 	return nil
+}
+
+func newStrPtr(text string) *string {
+	strValuePtr := new(string)
+	*strValuePtr = text
+	return strValuePtr
 }
 
 func googleSheetsService(ctx context.Context) (*sheets.Service, error) {
