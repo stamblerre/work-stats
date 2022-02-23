@@ -104,9 +104,10 @@ func AuthoredChangelistsToCells(cls []*Changelist) []*Row {
 	}
 	sort.Strings(sortedRepos)
 
-	sheet := []*Row{
-		{Cells: []string{"CL", "Description", "Status"}},
-	}
+	sheet := []*Row{{
+		Cells:    []string{"CL", "Description", "Status"},
+		BoldText: true,
+	}}
 	for _, repo := range sortedRepos {
 		cls := repos[repo]
 		categories := make(map[category][]*Changelist)
@@ -129,26 +130,39 @@ func AuthoredChangelistsToCells(cls []*Changelist) []*Row {
 		})
 		for _, category := range sortedCategories {
 			cls := categories[category]
-			sortCLs(cls)
-
+			sort.SliceStable(cls, func(i, j int) bool {
+				return cls[i].Link < cls[j].Link
+			})
 			for _, cl := range cls {
 				var yellow color.Color
 				if cl.Status != Merged {
 					yellow = paleYellow()
 				}
 				sheet = append(sheet, &Row{
-					Cells: []string{cl.Link, truncate(cl.Subject)},
+					Cells: []string{cl.Link, truncate(cl.Subject), ""},
 					Color: yellow,
 				})
 			}
 			// Only add subtotals for categories only if they are legitimate.
 			if len(sortedCategories) > 1 {
-				sheet = append(sheet, &Row{Cells: []string{"", category.String(), fmt.Sprint(len(cls))}})
+				sheet = append(sheet, &Row{
+					Cells:    []string{"", category.String(), fmt.Sprint(len(cls))},
+					Color:    subsubtotalGray(),
+					BoldText: true,
+				})
 			}
 		}
-		sheet = append(sheet, &Row{Cells: []string{"Subtotal", repo, fmt.Sprint(len(repos[repo]))}})
+		sheet = append(sheet, &Row{
+			Cells:    []string{"Subtotal", repo, fmt.Sprint(len(repos[repo]))},
+			Color:    subtotalGray(),
+			BoldText: true,
+		})
 	}
-	sheet = append(sheet, &Row{Cells: []string{"Total", "", fmt.Sprintf("%v", len(cls))}})
+	sheet = append(sheet, &Row{
+		Cells:    []string{"Total", "", fmt.Sprintf("%v", len(cls))},
+		Color:    totalGray(),
+		BoldText: true,
+	})
 	return sheet
 }
 
@@ -163,7 +177,10 @@ func ReviewedChangelistsToCells(cls []*Changelist) []*Row {
 	}
 	sort.Strings(sortedRepos)
 
-	cells := []*Row{{Cells: []string{"CL", "Description"}}}
+	cells := []*Row{{
+		Cells:    []string{"CL", "Description"},
+		BoldText: true,
+	}}
 	for _, repo := range sortedRepos {
 		authors := make(map[string][]*Changelist)
 		for _, cl := range repos[repo] {
@@ -177,28 +194,33 @@ func ReviewedChangelistsToCells(cls []*Changelist) []*Row {
 
 		for _, author := range sortedAuthors {
 			cls := authors[author]
-			sortCLs(cls)
+			sort.SliceStable(cls, func(i, j int) bool {
+				return cls[i].Link < cls[j].Link
+			})
 
 			for _, cl := range cls {
-				cells = append(cells, &Row{Cells: []string{cl.Link, truncate(cl.Subject)}})
+				cells = append(cells, &Row{Cells: []string{cl.Link, truncate(cl.Subject), ""}})
 			}
-			cells = append(cells, &Row{Cells: []string{"", author, fmt.Sprint(len(cls))}})
+			cells = append(cells, &Row{
+				Cells:    []string{"", author, fmt.Sprint(len(cls))},
+				Color:    subsubtotalGray(),
+				BoldText: true,
+			})
 		}
 		if len(repos) > 1 {
-			cells = append(cells, &Row{Cells: []string{"Subtotal", repo, fmt.Sprint(len(repos[repo]))}})
+			cells = append(cells, &Row{
+				Cells:    []string{"Subtotal", repo, fmt.Sprint(len(repos[repo]))},
+				Color:    subtotalGray(),
+				BoldText: true,
+			})
 		}
 	}
-	cells = append(cells, &Row{Cells: []string{"Total", "", fmt.Sprint(len(cls))}})
-	return cells
-}
-
-func sortCLs(cls []*Changelist) {
-	sort.SliceStable(cls, func(i, j int) bool {
-		if cls[i].Status == cls[j].Status {
-			return cls[i].Link < cls[j].Link
-		}
-		return cls[i].Status < cls[j].Status
+	cells = append(cells, &Row{
+		Cells:    []string{"Total", "", fmt.Sprint(len(cls))},
+		Color:    totalGray(),
+		BoldText: true,
 	})
+	return cells
 }
 
 func truncate(x string) string {

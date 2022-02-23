@@ -212,15 +212,9 @@ func write(_ context.Context, outputDir string, data map[string][]*generic.Row, 
 			continue
 		}
 		var rd []*sheets.RowData
-		for i, row := range cells {
+		for _, row := range cells {
 			var values []*sheets.CellData
 			for _, cell := range row.Cells {
-				var total, subtotal, subsubtotal bool
-				if len(row.Cells) >= 1 {
-					total = row.Cells[0] == "Total"
-					subtotal = row.Cells[0] == "Subtotal"
-					subsubtotal = row.Cells[0] == ""
-				}
 				cellPtr := new(string)
 				*cellPtr = cell
 				cd := &sheets.CellData{
@@ -229,7 +223,7 @@ func write(_ context.Context, outputDir string, data map[string][]*generic.Row, 
 					},
 					UserEnteredFormat: &sheets.CellFormat{
 						TextFormat: &sheets.TextFormat{
-							Bold: i == 0 || total || subtotal || subsubtotal,
+							Bold: row.BoldText,
 						},
 					},
 				}
@@ -239,24 +233,6 @@ func write(_ context.Context, outputDir string, data map[string][]*generic.Row, 
 						Blue:  float64(b) / 255.0,
 						Green: float64(g) / 255.0,
 						Red:   float64(r) / 255.0,
-					}
-				} else if subsubtotal {
-					cd.UserEnteredFormat.BackgroundColor = &sheets.Color{
-						Blue:  0.97,
-						Green: 0.97,
-						Red:   0.97,
-					}
-				} else if subtotal {
-					cd.UserEnteredFormat.BackgroundColor = &sheets.Color{
-						Blue:  0.94,
-						Green: 0.94,
-						Red:   0.94,
-					}
-				} else if total {
-					cd.UserEnteredFormat.BackgroundColor = &sheets.Color{
-						Blue:  0.91,
-						Green: 0.91,
-						Red:   0.91,
 					}
 				}
 				values = append(values, cd)

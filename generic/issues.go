@@ -111,16 +111,28 @@ func IssuesToCells(username string, issues []*Issue) []*Row {
 					}})
 			}
 			if len(sortedCategories) > 1 {
-				cells = append(cells, &Row{Cells: append([]string{"", category}, categoryTotal.asCells()...)})
+				cells = append(cells, &Row{
+					Cells:    append([]string{"", category}, categoryTotal.asCells()...),
+					Color:    subsubtotalGray(),
+					BoldText: true,
+				})
 			}
 			repoTotal.add(categoryTotal)
 		}
 		// Only add the subtotal if there are multiple repos.
 		if len(repos) > 1 {
-			cells = append(cells, &Row{Cells: append([]string{"Subtotal", repo}, repoTotal.asCells()...)})
+			cells = append(cells, &Row{
+				Cells:    append([]string{"Subtotal", repo}, repoTotal.asCells()...),
+				Color:    subtotalGray(),
+				BoldText: true,
+			})
 		}
 		grandTotal.add(repoTotal)
 	}
-	cells = append(cells, &Row{Cells: append([]string{"Total", ""}, grandTotal.asCells()...)})
+	cells = append(cells, &Row{
+		Cells:    append([]string{"Total", ""}, grandTotal.asCells()...),
+		Color:    totalGray(),
+		BoldText: true,
+	})
 	return cells
 }
