@@ -14,7 +14,11 @@ type Row struct {
 
 type Cell struct {
 	Text      string
-	HyperLink string
+	Hyperlink string
+}
+
+func (c *Cell) HyperlinkFormula() string {
+	return fmt.Sprintf("=HYPERLINK(%q, %q)", c.Hyperlink, c.Text)
 }
 
 func (r *Row) ToCells() []string {

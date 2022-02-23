@@ -233,8 +233,8 @@ func write(_ context.Context, outputDir string, data map[string][]*generic.Row, 
 						Red:   float64(r) / 255.0,
 					}
 				}
-				if cell.HyperLink != "" {
-					cd.UserEnteredValue.FormulaValue = newStrPtr(fmt.Sprintf("HYPERLINK=%s", cell.HyperLink))
+				if cell.Hyperlink != "" {
+					cd.UserEnteredValue.FormulaValue = newStrPtr(cell.HyperlinkFormula())
 				}
 				values = append(values, cd)
 			}

@@ -106,8 +106,8 @@ func AuthoredChangelistsToCells(cls []*Changelist) []*Row {
 
 	sheet := []*Row{{
 		Cells: []*Cell{
-			{text: "CL"},
-			{text: "Description"},
+			{Text: "CL"},
+			{Text: "Description"},
 		},
 		BoldText: true,
 	}}
@@ -143,9 +143,9 @@ func AuthoredChangelistsToCells(cls []*Changelist) []*Row {
 				}
 				sheet = append(sheet, &Row{
 					Cells: []*Cell{
-						{text: cl.Link, hyperlink: cl.Link},
-						{text: truncate(cl.Subject)},
-						{text: ""},
+						{Text: cl.Link, Hyperlink: cl.Link},
+						{Text: truncate(cl.Subject)},
+						{Text: ""},
 					},
 					Color: yellow,
 				})
@@ -177,8 +177,8 @@ func ReviewedChangelistsToCells(cls []*Changelist) []*Row {
 
 	cells := []*Row{{
 		Cells: []*Cell{
-			{text: "CL"},
-			{text: "Description"},
+			{Text: "CL"},
+			{Text: "Description"},
 		},
 		BoldText: true,
 	}}
@@ -201,9 +201,9 @@ func ReviewedChangelistsToCells(cls []*Changelist) []*Row {
 
 			for _, cl := range cls {
 				cells = append(cells, &Row{Cells: []*Cell{
-					{text: cl.Link, hyperlink: cl.Link},
-					{text: truncate(cl.Subject)},
-					{text: ""},
+					{Text: cl.Link, Hyperlink: cl.Link},
+					{Text: truncate(cl.Subject)},
+					{Text: ""},
 				}})
 			}
 			cells = append(cells, totalRow("", author, fmt.Sprint(len(cls))))

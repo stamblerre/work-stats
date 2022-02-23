@@ -73,12 +73,12 @@ func IssuesToCells(username string, issues []*Issue) []*Row {
 	sort.Strings(sortedRepos)
 
 	cells := append([]*Row{}, &Row{Cells: []*Cell{
-		{text: "Issue Number"},
-		{text: "Description"},
-		{text: "Opened"},
-		{text: "Closed"},
-		{text: "Number of Comments"},
-		{text: "Total Issues"},
+		{Text: "Issue Number"},
+		{Text: "Description"},
+		{Text: "Opened"},
+		{Text: "Closed"},
+		{Text: "Number of Comments"},
+		{Text: "Total Issues"},
 	}})
 	grandTotal := &issueTotal{}
 	for _, repo := range sortedRepos {
@@ -113,11 +113,11 @@ func IssuesToCells(username string, issues []*Issue) []*Row {
 				categoryTotal.comments += issue.Comments
 				cells = append(cells, &Row{
 					Cells: []*Cell{
-						{text: issue.Link, hyperlink: issue.Link},
-						{text: truncate(issue.Title)},
-						{text: strconv.FormatBool(opened)},
-						{text: strconv.FormatBool(closed)},
-						{text: strconv.FormatInt(int64(issue.Comments), 10)},
+						{Text: issue.Link, Hyperlink: issue.Link},
+						{Text: truncate(issue.Title)},
+						{Text: strconv.FormatBool(opened)},
+						{Text: strconv.FormatBool(closed)},
+						{Text: strconv.FormatInt(int64(issue.Comments), 10)},
 					}})
 			}
 			if len(sortedCategories) > 1 {
