@@ -155,6 +155,9 @@ func AuthoredChangelistsToCells(cls []*Changelist) []*Row {
 }
 
 func ReviewedChangelistsToCells(cls []*Changelist) []*Row {
+	if len(cls) == 0 {
+		return nil
+	}
 	repos := make(map[string][]*Changelist)
 	for _, cl := range cls {
 		repos[cl.Repo] = append(repos[cl.Repo], cl)

@@ -58,6 +58,9 @@ func (t1 *issueTotal) add(t2 *issueTotal) {
 }
 
 func IssuesToCells(username string, issues []*Issue) []*Row {
+	if len(issues) == 0 {
+		return nil
+	}
 	// First, categorize issues by repository.
 	repos := make(map[string][]*Issue)
 	for _, issue := range issues {
