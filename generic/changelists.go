@@ -2,6 +2,7 @@ package generic
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -19,10 +20,33 @@ type Changelist struct {
 	Status           ChangelistStatus
 	MergedAt         time.Time
 	AssociatedIssues []*Issue
+	AffectedFiles    []string
 }
 
 func (cl *Changelist) Category() string {
-	return extractCategory(cl.Subject)
+	if category := extractCategory(cl.Subject); category != "" {
+		return category
+	}
+	// No category in the CL description. Check the affected files.
+	// Determine the longest and most popular parent directory and choose that
+	// as the category.
+	directories := map[string]int{}
+	for _, filename := range cl.AffectedFiles {
+		dir := filepath.Dir(filename)
+		for dir != "" && dir != "." {
+			directories[dir]++
+			dir = filepath.Dir(dir)
+		}
+	}
+	var popularDir string
+	var popularCount int
+	for dir, count := range directories {
+		if count > popularCount && len(dir) > len(popularDir) {
+			popularCount = count
+			popularDir = dir
+		}
+	}
+	return popularDir
 }
 
 type ChangelistStatus int

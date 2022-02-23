@@ -210,6 +210,10 @@ func GerritToGenericCL(cl *maintner.GerritCL) *generic.Changelist {
 	for _, msg := range cl.Messages {
 		comments = append(comments, msg.Message)
 	}
+	var filenames []string
+	for _, f := range cl.Commit.Files {
+		filenames = append(filenames, f.GetFile())
+	}
 	return &generic.Changelist{
 		Number:           int(cl.Number),
 		Link:             link(cl),
@@ -222,6 +226,7 @@ func GerritToGenericCL(cl *maintner.GerritCL) *generic.Changelist {
 		Status:           toStatus(cl.Status),
 		MergedAt:         toMergeTime(cl),
 		AssociatedIssues: issues,
+		AffectedFiles:    filenames,
 	}
 }
 
