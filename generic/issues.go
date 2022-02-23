@@ -57,7 +57,7 @@ func (t1 *issueTotal) add(t2 *issueTotal) {
 	t1.closed += t2.closed
 }
 
-func IssuesToCells(username string, issues []*Issue) [][]string {
+func IssuesToCells(username string, issues []*Issue) []*Row {
 	// First, categorize issues by repository.
 	repos := make(map[string][]*Issue)
 	for _, issue := range issues {
@@ -69,7 +69,7 @@ func IssuesToCells(username string, issues []*Issue) [][]string {
 	}
 	sort.Strings(sortedRepos)
 
-	cells := append([][]string{}, []string{"Issue Number", "Description", "Opened", "Closed", "Number of Comments", "Total Issues"})
+	cells := append([]*Row{}, &Row{Cells: []string{"Issue Number", "Description", "Opened", "Closed", "Number of Comments", "Total Issues"}})
 	grandTotal := &issueTotal{}
 	for _, repo := range sortedRepos {
 		categories := make(map[string][]*Issue)
@@ -101,25 +101,26 @@ func IssuesToCells(username string, issues []*Issue) [][]string {
 					categoryTotal.closed++
 				}
 				categoryTotal.comments += issue.Comments
-				cells = append(cells, []string{
-					issue.Link,
-					truncate(issue.Title),
-					strconv.FormatBool(opened),
-					strconv.FormatBool(closed),
-					strconv.FormatInt(int64(issue.Comments), 10),
-				})
+				cells = append(cells, &Row{
+					Cells: []string{
+						issue.Link,
+						truncate(issue.Title),
+						strconv.FormatBool(opened),
+						strconv.FormatBool(closed),
+						strconv.FormatInt(int64(issue.Comments), 10),
+					}})
 			}
 			if len(sortedCategories) > 1 {
-				cells = append(cells, append([]string{"", category}, categoryTotal.asCells()...))
+				cells = append(cells, &Row{Cells: append([]string{"", category}, categoryTotal.asCells()...)})
 			}
 			repoTotal.add(categoryTotal)
 		}
 		// Only add the subtotal if there are multiple repos.
 		if len(repos) > 1 {
-			cells = append(cells, append([]string{"Subtotal", repo}, repoTotal.asCells()...))
+			cells = append(cells, &Row{Cells: append([]string{"Subtotal", repo}, repoTotal.asCells()...)})
 		}
 		grandTotal.add(repoTotal)
 	}
-	cells = append(cells, append([]string{"Total", ""}, grandTotal.asCells()...))
+	cells = append(cells, &Row{Cells: append([]string{"Total", ""}, grandTotal.asCells()...)})
 	return cells
 }

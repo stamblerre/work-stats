@@ -100,7 +100,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := write(ctx, dir, map[string][][]string{
+		if err := write(ctx, dir, map[string][]*generic.Row{
 			"golang-issues": generic.IssuesToCells(*username, issues),
 		}, rowData); err != nil {
 			log.Fatal(err)
@@ -109,7 +109,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := write(ctx, dir, map[string][][]string{
+		if err := write(ctx, dir, map[string][]*generic.Row{
 			"golang-authored": generic.AuthoredChangelistsToCells(authored),
 			"golang-reviewed": generic.ReviewedChangelistsToCells(reviewed),
 		}, rowData); err != nil {
@@ -123,7 +123,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := write(ctx, dir, map[string][][]string{
+		if err := write(ctx, dir, map[string][]*generic.Row{
 			"github-issues":       generic.IssuesToCells(*username, issues),
 			"github-prs-authored": generic.AuthoredChangelistsToCells(authored),
 			"github-prs-reviewed": generic.ReviewedChangelistsToCells(reviewed),
@@ -179,7 +179,7 @@ func main() {
 	log.Printf("Wrote data to Google Sheet: %s\n", spreadsheet.SpreadsheetUrl)
 }
 
-func write(_ context.Context, outputDir string, data map[string][][]string, rowData map[string][]*sheets.RowData) error {
+func write(_ context.Context, outputDir string, data map[string][]*generic.Row, rowData map[string][]*sheets.RowData) error {
 	// Write output to disk first.
 	var filenames []string
 	for filename, cells := range data {
@@ -197,7 +197,7 @@ func write(_ context.Context, outputDir string, data map[string][][]string, rowD
 		defer writer.Flush()
 
 		for _, row := range cells {
-			if err := writer.Write(row); err != nil {
+			if err := writer.Write(row.Cells); err != nil {
 				return err
 			}
 		}
@@ -214,12 +214,12 @@ func write(_ context.Context, outputDir string, data map[string][][]string, rowD
 		var rd []*sheets.RowData
 		for i, row := range cells {
 			var values []*sheets.CellData
-			for _, cell := range row {
+			for _, cell := range row.Cells {
 				var total, subtotal, subsubtotal bool
-				if len(row) >= 1 {
-					total = row[0] == "Total"
-					subtotal = row[0] == "Subtotal"
-					subsubtotal = row[0] == ""
+				if len(row.Cells) >= 1 {
+					total = row.Cells[0] == "Total"
+					subtotal = row.Cells[0] == "Subtotal"
+					subsubtotal = row.Cells[0] == ""
 				}
 				cellPtr := new(string)
 				*cellPtr = cell
@@ -233,7 +233,14 @@ func write(_ context.Context, outputDir string, data map[string][][]string, rowD
 						},
 					},
 				}
-				if subsubtotal {
+				if row.Color != nil {
+					r, g, b, _ := row.Color.RGBA()
+					cd.UserEnteredFormat.BackgroundColor = &sheets.Color{
+						Blue:  float64(b) / 255.0,
+						Green: float64(g) / 255.0,
+						Red:   float64(r) / 255.0,
+					}
+				} else if subsubtotal {
 					cd.UserEnteredFormat.BackgroundColor = &sheets.Color{
 						Blue:  0.97,
 						Green: 0.97,
