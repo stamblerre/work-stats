@@ -23,6 +23,31 @@ type Changelist struct {
 	AffectedFiles    []string
 }
 
+type ChangelistStatus int
+
+const (
+	Merged = ChangelistStatus(iota)
+	Abandoned
+	New
+	Draft
+	Unknown
+)
+
+func (status ChangelistStatus) String() string {
+	switch status {
+	case Merged:
+		return "merged"
+	case Abandoned:
+		return "abandoned"
+	case New:
+		return "new"
+	case Draft:
+		return "draft"
+	default:
+		return "unknown"
+	}
+}
+
 func (cl *Changelist) Category() string {
 	if category := extractCategory(cl.Subject); category != "" {
 		return category
@@ -52,16 +77,6 @@ func (cl *Changelist) Category() string {
 	return popularDir
 }
 
-type ChangelistStatus int
-
-const (
-	Merged = ChangelistStatus(iota)
-	Abandoned
-	New
-	Draft
-	Unknown
-)
-
 type category struct {
 	branch string
 	desc   string
@@ -88,7 +103,7 @@ func AuthoredChangelistsToCells(cls []*Changelist) [][]string {
 	}
 	sort.Strings(sortedRepos)
 
-	cells := [][]string{{"CL", "Description"}}
+	cells := [][]string{{"CL", "Description", "Status"}}
 	for _, repo := range sortedRepos {
 		cls := repos[repo]
 		categories := make(map[category][]*Changelist)
@@ -111,20 +126,19 @@ func AuthoredChangelistsToCells(cls []*Changelist) [][]string {
 		})
 		for _, category := range sortedCategories {
 			cls := categories[category]
-			sort.SliceStable(cls, func(i, j int) bool {
-				return cls[i].Link < cls[j].Link
-			})
+			sortCLs(cls)
+
 			for _, cl := range cls {
-				cells = append(cells, []string{cl.Link, truncate(cl.Subject)})
+				cells = append(cells, []string{cl.Link, truncate(cl.Subject), cl.Status.String()})
 			}
 			// Only add subtotals for categories only if they are legitimate.
 			if len(sortedCategories) > 1 {
-				cells = append(cells, []string{"", category.String(), fmt.Sprint(len(cls))})
+				cells = append(cells, []string{"", category.String(), "", fmt.Sprint(len(cls))})
 			}
 		}
-		cells = append(cells, []string{"Subtotal", repo, fmt.Sprint(len(repos[repo]))})
+		cells = append(cells, []string{"Subtotal", repo, "", fmt.Sprint(len(repos[repo]))})
 	}
-	cells = append(cells, []string{"Total", "", fmt.Sprintf("%v", len(cls))})
+	cells = append(cells, []string{"Total", "", "", fmt.Sprintf("%v", len(cls))})
 	return cells
 }
 
@@ -139,7 +153,7 @@ func ReviewedChangelistsToCells(cls []*Changelist) [][]string {
 	}
 	sort.Strings(sortedRepos)
 
-	cells := [][]string{{"CL", "Description"}}
+	cells := [][]string{{"CL", "Description", "Status"}}
 	for _, repo := range sortedRepos {
 		authors := make(map[string][]*Changelist)
 		for _, cl := range repos[repo] {
@@ -153,20 +167,28 @@ func ReviewedChangelistsToCells(cls []*Changelist) [][]string {
 
 		for _, author := range sortedAuthors {
 			cls := authors[author]
-			sort.SliceStable(cls, func(i, j int) bool {
-				return cls[i].Link < cls[j].Link
-			})
+			sortCLs(cls)
+
 			for _, cl := range cls {
-				cells = append(cells, []string{cl.Link, truncate(cl.Subject)})
+				cells = append(cells, []string{cl.Link, truncate(cl.Subject), cl.Status.String()})
 			}
-			cells = append(cells, []string{"", author, fmt.Sprint(len(cls))})
+			cells = append(cells, []string{"", author, "", fmt.Sprint(len(cls))})
 		}
 		if len(repos) > 1 {
-			cells = append(cells, []string{"Subtotal", repo, fmt.Sprint(len(repos[repo]))})
+			cells = append(cells, []string{"Subtotal", repo, "", fmt.Sprint(len(repos[repo]))})
 		}
 	}
-	cells = append(cells, []string{"Total", "", fmt.Sprint(len(cls))})
+	cells = append(cells, []string{"Total", "", "", fmt.Sprint(len(cls))})
 	return cells
+}
+
+func sortCLs(cls []*Changelist) {
+	sort.SliceStable(cls, func(i, j int) bool {
+		if cls[i].Status == cls[j].Status {
+			return cls[i].Link < cls[j].Link
+		}
+		return cls[i].Status < cls[j].Status
+	})
 }
 
 func truncate(x string) string {
