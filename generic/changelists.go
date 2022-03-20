@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	rsheets "github.com/stamblerre/sheets"
+	"github.com/stamblerre/sheets"
 )
 
 type Changelist struct {
@@ -92,7 +92,7 @@ func (c category) String() string {
 	return c.branch + ": " + c.desc
 }
 
-func AuthoredChangelistsToCells(cls []*Changelist) []*rsheets.Row {
+func AuthoredChangelistsToCells(cls []*Changelist) []*sheets.Row {
 	if len(cls) == 0 {
 		return nil
 	}
@@ -106,8 +106,8 @@ func AuthoredChangelistsToCells(cls []*Changelist) []*rsheets.Row {
 	}
 	sort.Strings(sortedRepos)
 
-	sheet := []*rsheets.Row{{
-		Cells: []*rsheets.Cell{
+	sheet := []*sheets.Row{{
+		Cells: []*sheets.Cell{
 			{Text: "CL"},
 			{Text: "Description"},
 		},
@@ -141,10 +141,10 @@ func AuthoredChangelistsToCells(cls []*Changelist) []*rsheets.Row {
 			for _, cl := range cls {
 				var yellow color.Color
 				if cl.Status != Merged {
-					yellow = rsheets.PaleYellow()
+					yellow = sheets.PaleYellow()
 				}
-				sheet = append(sheet, &rsheets.Row{
-					Cells: []*rsheets.Cell{
+				sheet = append(sheet, &sheets.Row{
+					Cells: []*sheets.Cell{
 						{Text: cl.Link, Hyperlink: cl.Link},
 						{Text: truncate(cl.Subject)},
 						{Text: ""},
@@ -154,16 +154,16 @@ func AuthoredChangelistsToCells(cls []*Changelist) []*rsheets.Row {
 			}
 			// Only add subtotals for categories only if they are legitimate.
 			if len(sortedCategories) > 1 {
-				sheet = append(sheet, rsheets.TotalRow("", category.String(), fmt.Sprint(len(cls))))
+				sheet = append(sheet, sheets.TotalRow("", category.String(), fmt.Sprint(len(cls))))
 			}
 		}
-		sheet = append(sheet, rsheets.TotalRow("Subtotal", repo, fmt.Sprint(len(repos[repo]))))
+		sheet = append(sheet, sheets.TotalRow("Subtotal", repo, fmt.Sprint(len(repos[repo]))))
 	}
-	sheet = append(sheet, rsheets.TotalRow("Total", "", fmt.Sprintf("%v", len(cls))))
+	sheet = append(sheet, sheets.TotalRow("Total", "", fmt.Sprintf("%v", len(cls))))
 	return sheet
 }
 
-func ReviewedChangelistsToCells(cls []*Changelist) []*rsheets.Row {
+func ReviewedChangelistsToCells(cls []*Changelist) []*sheets.Row {
 	if len(cls) == 0 {
 		return nil
 	}
@@ -177,8 +177,8 @@ func ReviewedChangelistsToCells(cls []*Changelist) []*rsheets.Row {
 	}
 	sort.Strings(sortedRepos)
 
-	cells := []*rsheets.Row{{
-		Cells: []*rsheets.Cell{
+	cells := []*sheets.Row{{
+		Cells: []*sheets.Cell{
 			{Text: "CL"},
 			{Text: "Description"},
 		},
@@ -202,19 +202,19 @@ func ReviewedChangelistsToCells(cls []*Changelist) []*rsheets.Row {
 			})
 
 			for _, cl := range cls {
-				cells = append(cells, &rsheets.Row{Cells: []*rsheets.Cell{
+				cells = append(cells, &sheets.Row{Cells: []*sheets.Cell{
 					{Text: cl.Link, Hyperlink: cl.Link},
 					{Text: truncate(cl.Subject)},
 					{Text: ""},
 				}})
 			}
-			cells = append(cells, rsheets.TotalRow("", author, fmt.Sprint(len(cls))))
+			cells = append(cells, sheets.TotalRow("", author, fmt.Sprint(len(cls))))
 		}
 		if len(repos) > 1 {
-			cells = append(cells, rsheets.TotalRow("Subtotal", repo, fmt.Sprint(len(repos[repo]))))
+			cells = append(cells, sheets.TotalRow("Subtotal", repo, fmt.Sprint(len(repos[repo]))))
 		}
 	}
-	cells = append(cells, rsheets.TotalRow("Total", "", fmt.Sprint(len(cls))))
+	cells = append(cells, sheets.TotalRow("Total", "", fmt.Sprint(len(cls))))
 	return cells
 }
 
