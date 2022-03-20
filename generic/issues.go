@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	rsheets "github.com/stamblerre/sheets"
 )
 
 type Issue struct {
@@ -57,7 +59,7 @@ func (t1 *issueTotal) add(t2 *issueTotal) {
 	t1.closed += t2.closed
 }
 
-func IssuesToCells(username string, issues []*Issue) []*Row {
+func IssuesToCells(username string, issues []*Issue) []*rsheets.Row {
 	if len(issues) == 0 {
 		return nil
 	}
@@ -72,7 +74,7 @@ func IssuesToCells(username string, issues []*Issue) []*Row {
 	}
 	sort.Strings(sortedRepos)
 
-	cells := append([]*Row{}, &Row{Cells: []*Cell{
+	cells := append([]*rsheets.Row{}, &rsheets.Row{Cells: []*rsheets.Cell{
 		{Text: "Issue Number"},
 		{Text: "Description"},
 		{Text: "Opened"},
@@ -111,8 +113,8 @@ func IssuesToCells(username string, issues []*Issue) []*Row {
 					categoryTotal.closed++
 				}
 				categoryTotal.comments += issue.Comments
-				cells = append(cells, &Row{
-					Cells: []*Cell{
+				cells = append(cells, &rsheets.Row{
+					Cells: []*rsheets.Cell{
 						{Text: issue.Link, Hyperlink: issue.Link},
 						{Text: truncate(issue.Title)},
 						{Text: strconv.FormatBool(opened)},
@@ -121,16 +123,16 @@ func IssuesToCells(username string, issues []*Issue) []*Row {
 					}})
 			}
 			if len(sortedCategories) > 1 {
-				cells = append(cells, totalRow(append([]string{"", category}, categoryTotal.asCells()...)...))
+				cells = append(cells, rsheets.TotalRow(append([]string{"", category}, categoryTotal.asCells()...)...))
 			}
 			repoTotal.add(categoryTotal)
 		}
 		// Only add the subtotal if there are multiple repos.
 		if len(repos) > 1 {
-			cells = append(cells, totalRow(append([]string{"Subtotal", repo}, repoTotal.asCells()...)...))
+			cells = append(cells, rsheets.TotalRow(append([]string{"Subtotal", repo}, repoTotal.asCells()...)...))
 		}
 		grandTotal.add(repoTotal)
 	}
-	cells = append(cells, totalRow(append([]string{"Total", ""}, grandTotal.asCells()...)...))
+	cells = append(cells, rsheets.TotalRow(append([]string{"Total", ""}, grandTotal.asCells()...)...))
 	return cells
 }
