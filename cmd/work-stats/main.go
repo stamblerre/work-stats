@@ -161,7 +161,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	if err := sheets.ResizeColumns(ctx, srv, *spreadsheet); err != nil {
+	if err := sheets.ResizeColumns(ctx, srv, spreadsheet); err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("Wrote data to Google Sheet: %s\n", spreadsheet.SpreadsheetUrl)

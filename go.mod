@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/google/go-cmp v0.5.7
 	github.com/google/go-github/v28 v28.1.1
-	github.com/stamblerre/sheets v0.0.0-20220322043718-558dc6a359fa
+	github.com/stamblerre/sheets v0.0.0-20220322044539-54bdb620f700
 	github.com/wcharczuk/go-chart/v2 v2.1.0
 	golang.org/x/build v0.0.0-20220318225125-3ab5e7e87a80
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
