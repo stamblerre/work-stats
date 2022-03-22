@@ -161,22 +161,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	// Final sheet updates:
-	// - Auto-resize the columns of the spreadsheet to fit.
-	var requests []*gsheets.Request
-	for _, sheet := range spreadsheet.Sheets {
-		requests = append(requests, &gsheets.Request{
-			AutoResizeDimensions: &gsheets.AutoResizeDimensionsRequest{
-				Dimensions: &gsheets.DimensionRange{
-					Dimension: "COLUMNS",
-					SheetId:   sheet.Properties.SheetId,
-				},
-			},
-		})
-	}
-	if _, err := srv.Spreadsheets.BatchUpdate(spreadsheet.SpreadsheetId, &gsheets.BatchUpdateSpreadsheetRequest{
-		Requests: requests,
-	}).Context(ctx).Do(); err != nil {
+	if err := sheets.ResizeColumns(ctx, srv, *spreadsheet); err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("Wrote data to Google Sheet: %s\n", spreadsheet.SpreadsheetUrl)
