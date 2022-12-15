@@ -36,7 +36,7 @@ outer:
 	for {
 		var current int
 		for i := 1; i < 11; i++ {
-			result, _, err := client.Search.Issues(ctx, fmt.Sprintf("involves:%v updated:%s..%s", username, last.Format(time.RFC3339), end.Format(time.RFC3339)), &github.SearchOptions{
+			result, _, err := client.Search.Issues(ctx, fmt.Sprintf("is:issue involves:%v updated:%s..%s", username, last.Format(time.RFC3339), end.Format(time.RFC3339)), &github.SearchOptions{
 				ListOptions: github.ListOptions{
 					Page:    i,
 					PerPage: 100,

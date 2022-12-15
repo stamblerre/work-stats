@@ -92,13 +92,17 @@ func GerritToGenericIssue(issue *maintner.GitHubIssue, repo *maintner.GitHubRepo
 	}
 	repository := fmt.Sprintf("%s/%s", repo.ID().Owner, repo.ID().Repo)
 	link := fmt.Sprintf("github.com/%s/issues/%v", repository, issue.Number)
+	milestone := ""
+	if issue.Milestone != nil {
+		milestone = issue.Milestone.Title
+	}
 	i := &generic.Issue{
 		Number:     int(issue.Number),
 		Title:      issue.Title,
 		Repo:       repository,
 		Link:       link,
 		Labels:     labels,
-		Milestone:  issue.Milestone.Title,
+		Milestone:  milestone,
 		DateClosed: issue.ClosedAt,
 		DateOpened: issue.Created,
 	}

@@ -21,6 +21,7 @@ var (
 	username = flag.String("username", "", "GitHub username")
 	email    = flag.String("email", "", "Gerrit email or emails, comma-separated")
 	since    = flag.String("since", "", "date from which to collect data")
+	until    = flag.String("until", "", "date until which to collect data")
 
 	// Optional flags.
 	gerritFlag = flag.Bool("gerrit", true, "collect data on Go issues or changelists")
@@ -50,8 +51,8 @@ func main() {
 
 	// Parse out the start date, if provided.
 	var (
-		start time.Time
-		err   error
+		start, end time.Time
+		err        error
 	)
 	if *since != "" {
 		start, err = time.Parse("2006-01-02", *since)
@@ -63,6 +64,14 @@ func main() {
 		start = time.Now().AddDate(0, 0, -7)
 	} else {
 		start = time.Date(1900, time.January, 1, 0, 0, 0, 0, time.UTC)
+	}
+	if *until != "" {
+		end, err = time.Parse("2006-01-02", *until)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		end = time.Now()
 	}
 
 	// Determine if the user has provided a valid Google Sheets URL.
@@ -83,8 +92,6 @@ func main() {
 
 	ctx := context.Background()
 	rowData := make(map[string][]*gsheets.RowData)
-
-	end := time.Now()
 
 	// Write out data on the user's activity on the Go project's GitHub issues
 	// and the Go project's Gerrit code reviews.
